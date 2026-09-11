@@ -192,3 +192,11 @@ For reference, `agy-brain-explorer.py` expects session directories structured as
 ├── scratch/                        # Temporary files generated during session
 └── .user_uploaded/                 # Files uploaded by the user
 ```
+
+---
+
+## License
+Open source and available under the [Apache License 2.0](LICENSE).
+
+## Disclaimer
+This is not an official Google product.
