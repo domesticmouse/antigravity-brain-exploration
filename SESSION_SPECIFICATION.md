@@ -177,22 +177,27 @@ Antigravity encodes runtime environment details and user context into initial an
 
 ---
 
-## 6. Session Resolution & Discovery Algorithm
+## 6. Session Resolution & Multi-Brain Discovery Algorithm
 
-An exploration program should support resolving sessions via three methods:
+An exploration program should support resolving sessions and discovering traces across all Antigravity brain storage locations via:
 
-1. **Direct Path Resolution:**
+1. **Multi-Brain Discovery across `~/.gemini`:**
+   - Scan default user storage directories under `~/.gemini/` for any `brain` subdirectories (including `antigravity/brain`, `antigravity-cli/brain`, `antigravity-acp/brain`, etc.).
+   - Identify all valid session subdirectories containing `.system_generated/logs/transcript.jsonl` or `transcript_full.jsonl`.
+   - Extract session creation timestamps from step 0 (`created_at`) with fallback to directory creation time (`st_ctime`).
+   - Order all discovered conversation traces **chronologically by creation date/time** (defaulting to newest first, or oldest first when requested). Lexicographic ordering by UUID is explicitly avoided as UUID characters bear no chronological relationship.
+
+2. **Direct Path Resolution:**
    - Check if argument is a valid relative or absolute filesystem directory.
    - Verify that `<arg>/.system_generated/logs/transcript.jsonl` or `transcript_full.jsonl` exists.
 
-2. **Standard Brain Root Discovery:**
-   - Scan default user storage directories:
-     - On macOS / Linux: `~/.gemini/antigravity*/brain/`
+3. **Standard Brain Root Discovery:**
+   - Scan all discovered brain directories in `~/.gemini/**/brain/`.
    - Exact Match: If `<brain_dir>/<arg>` is a directory containing transcripts, resolve immediately.
    - Most Recent Tiebreak: If multiple brain roots contain the exact session ID, choose the one with the latest modification timestamp (`st_mtime`).
 
-3. **Prefix / Fuzzy Match:**
-   - If argument is a leading prefix (e.g. `74126ecc`), scan all session directories in `~/.gemini/antigravity*/brain/`.
+4. **Prefix / Fuzzy Match:**
+   - If argument is a leading prefix (e.g. `74126ecc`), scan all session directories in all brain directories.
    - Single match: Automatically resolve.
    - Multiple matches: Return an error listing the matching session IDs and their source roots.
    - No matches: Return a descriptive error listing the searched paths.
@@ -203,7 +208,22 @@ An exploration program should support resolving sessions via three methods:
 
 An exploration tool (CLI, TUI, or Web/Desktop GUI) adhering to this specification should implement the following functional capabilities (matching `agy-brain-explorer.py`):
 
-### 7.1 Command / View Specifications
+### 7.1 Trace Explorer (`list` / default when no session is specified)
+- **Inputs:** Filtering flags (`--limit`, `--all`, `--brain`, `--asc`), interactive mode toggle (`--interactive` / `-i`), machine-readable toggle (`--json` / `-j`).
+- **Outputs:**
+  - Table of all conversation traces across all brain directories under `~/.gemini`.
+  - Ordered by creation date/time (default: newest first).
+  - Columns:
+    - Index number (`#`)
+    - Creation date/time in local time (`YYYY-MM-DD HH:MM`)
+    - Source brain environment (`antigravity`, `antigravity-cli`, `antigravity-acp`, etc.)
+    - Truncated session UUID prefix (`Session ID`)
+    - Total conversation steps count (`Steps`)
+    - Initial user request / prompt preview (`User Request`)
+  - Interactive mode (`--interactive` / `-i`): Prompts the user to pick a trace by number or ID to inspect its summary, timeline, tools, or shell commands without needing to copy/paste UUIDs.
+- **JSON Format:** Array of trace objects containing `session_id`, `source_brain`, `directory`, `created_at`, `created_at_local`, `updated_at`, `step_count`, `user_request`, and `model`.
+
+### 7.2 Session Inspection Commands
 
 #### `summary`
 - **Inputs:** Session identifier.
