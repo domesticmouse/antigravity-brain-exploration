@@ -1,15 +1,15 @@
-# Antigravity Brain Exploration CLI (`explore.py`)
+# Antigravity Brain Exploration CLI (`agy-brain-explorer.py`)
 
 A fast, interactive CLI tool to inspect, debug, and analyze Google Antigravity session trajectories, transcripts, tool invocations, and execution step outputs.
 
-Built with [Typer](https://typer.tiangolo.com/) and [Rich](https://github.com/Textualize/rich), `explore.py` provides formatted terminal tables, color-coded status badges, syntax-highlighted tool payloads, and machine-readable JSON exports.
+Built with [Typer](https://typer.tiangolo.com/) and [Rich](https://github.com/Textualize/rich), `agy-brain-explorer.py` provides formatted terminal tables, color-coded status badges, syntax-highlighted tool payloads, and machine-readable JSON exports.
 
 ---
 
 ## Features
 
 - **Automated Session Discovery**: Pass an absolute path, a local relative path, or just a session UUID / prefix. Sessions located in `~/.gemini/antigravity*/brain/` are automatically resolved.
-- **Session Overview**: Display start/end timestamps, elapsed duration, detected model, client timezone, mentioned items, workspace paths, and tool frequency metrics.
+- **Session Overview (Default)**: Running without a subcommand defaults to `summary`. Displays start/end timestamps, elapsed duration, detected model, client timezone, mentioned items, workspace paths, and tool frequency metrics.
 - **Interactive Timeline**: Browse conversation turns with filters for tool calls (`--tools-only`), user inputs (`--user-only`), pagination, and offsets.
 - **Detailed Step Inspection**: Drill down into individual steps to view model thinking, prompt contents, formatted tool call arguments, and step output logs (`output.txt`).
 - **Tool & Command Auditing**: Dedicated commands to view all tool invocations or exclusively audit shell commands executed via `run_command` alongside their working directories.
@@ -33,20 +33,20 @@ Built with [Typer](https://typer.tiangolo.com/) and [Rich](https://github.com/Te
 Run directly with dependencies automatically resolved:
 
 ```bash
-uv run explore.py <SESSION_ID_OR_PATH> <COMMAND>
+uv run agy-brain-explorer.py <SESSION_ID_OR_PATH> [COMMAND]
 ```
 
 For example, using the included sample session:
 
 ```bash
-# High-level summary
-uv run explore.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986 summary
+# High-level summary (default command)
+uv run agy-brain-explorer.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986
 
 # Timeline of steps
-uv run explore.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986 steps --limit 5
+uv run agy-brain-explorer.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986 steps --limit 5
 
 # Inspect a specific step
-uv run explore.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986 step 1
+uv run agy-brain-explorer.py 74126ecc-9639-4ff3-9dcb-7ac2d9400986 step 1
 ```
 
 ### Using standard `venv`
@@ -56,7 +56,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install "typer>=0.12.0" "rich>=13.7.0"
 
-python explore.py <SESSION_ID_OR_PATH> <COMMAND>
+python agy-brain-explorer.py <SESSION_ID_OR_PATH> [COMMAND]
 ```
 
 ---
@@ -75,7 +75,7 @@ The `<SESSION>` argument accepts:
 ### Global Syntax
 
 ```bash
-explore.py [OPTIONS] SESSION COMMAND [ARGS]...
+agy-brain-explorer.py [OPTIONS] SESSION [COMMAND] [ARGS]...
 ```
 
 **Global Options:**
@@ -84,11 +84,13 @@ explore.py [OPTIONS] SESSION COMMAND [ARGS]...
 
 ---
 
-### 1. `summary`
-Displays a high-level overview of the session, including metadata, timing, duration, workspace paths, initial user request, and tool invocation statistics.
+### 1. `summary` (Default Command)
+Displays a high-level overview of the session, including metadata, timing, duration, workspace paths, initial user request, and tool invocation statistics. Executed automatically when no subcommand is specified.
 
 ```bash
-uv run explore.py <SESSION> summary
+uv run agy-brain-explorer.py <SESSION>
+# or explicitly:
+uv run agy-brain-explorer.py <SESSION> summary
 ```
 
 **Options:**
@@ -100,7 +102,7 @@ uv run explore.py <SESSION> summary
 Lists the conversation timeline in a formatted table showing step number, time, actor source (`USER_EXPLICIT`, `MODEL`, `SYSTEM`), step type, and action/preview.
 
 ```bash
-uv run explore.py <SESSION> steps [OPTIONS]
+uv run agy-brain-explorer.py <SESSION> steps [OPTIONS]
 ```
 
 **Options:**
@@ -113,7 +115,7 @@ uv run explore.py <SESSION> steps [OPTIONS]
 **Example:**
 ```bash
 # Show only the first 10 steps that ran tools
-uv run explore.py <SESSION> steps --tools-only --limit 10
+uv run agy-brain-explorer.py <SESSION> steps --tools-only --limit 10
 ```
 
 ---
@@ -122,7 +124,7 @@ uv run explore.py <SESSION> steps --tools-only --limit 10
 Inspects a specific step in detail. Displays metadata header, text content, model thinking (if present), formatted tool call arguments, and step output logs (`output.txt`).
 
 ```bash
-uv run explore.py <SESSION> step <STEP_INDEX> [OPTIONS]
+uv run agy-brain-explorer.py <SESSION> step <STEP_INDEX> [OPTIONS]
 ```
 
 **Options:**
@@ -132,7 +134,7 @@ uv run explore.py <SESSION> step <STEP_INDEX> [OPTIONS]
 **Example:**
 ```bash
 # View details of step 9 with up to 100 lines of output log
-uv run explore.py <SESSION> step 9 --lines 100
+uv run agy-brain-explorer.py <SESSION> step 9 --lines 100
 ```
 
 ---
@@ -141,7 +143,7 @@ uv run explore.py <SESSION> step 9 --lines 100
 Lists all tool calls executed across the entire session chronologically, including tool name, action/summary, and arguments/target.
 
 ```bash
-uv run explore.py <SESSION> tools
+uv run agy-brain-explorer.py <SESSION> tools
 ```
 
 **Options:**
@@ -153,7 +155,7 @@ uv run explore.py <SESSION> tools
 Audits all shell commands executed via the `run_command` tool. Displays step index, target working directory (`Cwd`), and the exact command line executed.
 
 ```bash
-uv run explore.py <SESSION> commands
+uv run agy-brain-explorer.py <SESSION> commands
 ```
 
 **Options:**
@@ -165,7 +167,7 @@ uv run explore.py <SESSION> commands
 Dumps the raw JSON record of a specific step index.
 
 ```bash
-uv run explore.py <SESSION> raw <STEP_INDEX> [OPTIONS]
+uv run agy-brain-explorer.py <SESSION> raw <STEP_INDEX> [OPTIONS]
 ```
 
 **Options:**
@@ -176,7 +178,7 @@ uv run explore.py <SESSION> raw <STEP_INDEX> [OPTIONS]
 
 ## Antigravity Session Directory Layout
 
-For reference, `explore.py` expects session directories structured as follows:
+For reference, `agy-brain-explorer.py` expects session directories structured as follows:
 
 ```text
 <session_dir>/

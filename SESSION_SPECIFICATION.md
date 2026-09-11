@@ -2,7 +2,7 @@
 
 **Version:** 1.0.0  
 **Status:** Complete  
-**Purpose:** Defines the file system layout, data schemas, extraction heuristics, and exploration tool requirements for Google Antigravity session trajectories (such as those inspected by `explore.py`).
+**Purpose:** Defines the file system layout, data schemas, extraction heuristics, and exploration tool requirements for Google Antigravity session trajectories (such as those inspected by `agy-brain-explorer.py`).
 
 ---
 
@@ -201,7 +201,7 @@ An exploration program should support resolving sessions via three methods:
 
 ## 7. Functional Requirements for an Exploration Program
 
-An exploration tool (CLI, TUI, or Web/Desktop GUI) adhering to this specification should implement the following functional capabilities (matching `explore.py`):
+An exploration tool (CLI, TUI, or Web/Desktop GUI) adhering to this specification should implement the following functional capabilities (matching `agy-brain-explorer.py`):
 
 ### 7.1 Command / View Specifications
 
