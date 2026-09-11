@@ -1,0 +1,265 @@
+# Antigravity Session Directory & Trajectory Specification
+
+**Version:** 1.0.0  
+**Status:** Complete  
+**Purpose:** Defines the file system layout, data schemas, extraction heuristics, and exploration tool requirements for Google Antigravity session trajectories (such as those inspected by `explore.py`).
+
+---
+
+## 1. Overview & Directory Hierarchy
+
+An Antigravity session directory represents a single conversation or agentic execution run. Session directories are typically identified by a UUID (e.g. `74126ecc-9639-4ff3-9dcb-7ac2d9400986`) and can exist either within user workspace directories or inside the Antigravity user storage root:
+
+```text
+<session_dir>/
+├── .system_generated/
+│   ├── logs/
+│   │   ├── transcript.jsonl            # Token-efficient compact JSONL transcript
+│   │   ├── transcript_full.jsonl       # Complete, untruncated JSONL transcript
+│   │   └── chunks/                     # (Optional) Incremental/rolling chunk logs
+│   │       ├── transcript/
+│   │       │   └── <chunk_id>.jsonl
+│   │       └── transcript_full/
+│   │           └── <chunk_id>.jsonl
+│   └── steps/
+│       └── <step_index>/
+│           └── output.txt              # Captured stdout/stderr or step execution log
+├── scratch/                            # Persistent scratchpad for scripts & temp files
+├── .user_uploaded/                     # Files uploaded into the session by the user
+└── <artifact_name>.md                  # Persistent markdown artifacts (e.g. implementation_plan.md)
+```
+
+### 1.1 Directory Contents & Purposes
+
+| Path | Required / Optional | Description |
+| :--- | :--- | :--- |
+| `.system_generated/logs/transcript.jsonl` | Required* | Compact JSON Lines log of conversation steps. Large fields (e.g. long tool responses) may be truncated. |
+| `.system_generated/logs/transcript_full.jsonl` | Required* | Untruncated JSON Lines log containing full payloads for all steps. |
+| `.system_generated/logs/chunks/` | Optional | Rolling chunk files storing historical step slices (e.g. `00000000.jsonl`). |
+| `.system_generated/steps/<step_index>/output.txt` | Optional (per step) | Raw tool execution stdout/stderr or command output corresponding to step `<step_index>`. |
+| `scratch/` | Optional | Persistent workspace for temporary scripts, benchmarks, or one-off data files created by the agent. |
+| `.user_uploaded/` | Optional | Storage folder for files uploaded directly into the chat UI by the user. |
+| `*.md` (Artifacts in root) | Optional | Persistent user-facing artifacts (e.g. `implementation_plan.md`, `walkthrough.md`, diagrams, reports). |
+
+*\* Note on Transcripts: A valid session directory MUST contain at least one of `transcript.jsonl` or `transcript_full.jsonl`. When both are present, exploration tools should prefer `transcript_full.jsonl` for in-depth data inspection and fall back to `transcript.jsonl`.*
+
+---
+
+## 2. Transcript Schema Specification
+
+Both `transcript.jsonl` and `transcript_full.jsonl` are formatted as JSON Lines (`.jsonl`), where each line is an independent, valid JSON object representing a single execution step (`step_index`).
+
+### 2.1 Step Object Schema
+
+```json
+{
+  "step_index": 1,
+  "source": "MODEL",
+  "type": "PLANNER_RESPONSE",
+  "status": "DONE",
+  "created_at": "2026-09-10T08:41:53Z",
+  "content": "Optional message content or response text",
+  "thinking": "Optional model chain-of-thought reasoning text",
+  "tool_calls": [
+    {
+      "name": "view_file",
+      "args": {
+        "AbsolutePath": "/path/to/file",
+        "toolAction": "Viewing file",
+        "toolSummary": "View file"
+      }
+    }
+  ],
+  "truncated_fields": ["content"]
+}
+```
+
+### 2.2 Field Definitions
+
+| Field | Type | Required | Description |
+| :--- | :--- | :--- | :--- |
+| `step_index` | `integer` | Yes | 0-indexed chronological step sequence number. |
+| `source` | `string (enum)` | Yes | Actor that generated the step: `USER_EXPLICIT`, `MODEL`, or `SYSTEM`. |
+| `type` | `string (enum)` | Yes | Semantic category of step: `USER_INPUT`, `PLANNER_RESPONSE`, or `GENERIC`. |
+| `status` | `string (enum)` | Yes | Execution status: usually `DONE`, or `ERROR` / `CANCELLED`. |
+| `created_at` | `string (ISO 8601)` | Yes | UTC or offset timestamp of step creation (e.g. `2026-09-10T08:41:53Z`). |
+| `content` | `string \| null` | No | Body text of the step (prompts, tool outputs, system notes, or conversational text). |
+| `thinking` | `string \| null` | No | Internal reasoning / chain-of-thought of the model before taking an action. |
+| `tool_calls` | `array of ToolCall` | No | Tool calls dispatched by the model during this step. |
+| `truncated_fields` | `array of string` | No | Present only in `transcript.jsonl` when fields exceeded token thresholds (e.g. `["content"]`, `["thinking"]`). |
+
+### 2.3 `source` Values
+
+- `USER_EXPLICIT`: Direct input, instructions, or clarifications provided by the human user.
+- `MODEL`: Generated by the AI model (reasoning, tool calls, synthesizing answers).
+- `SYSTEM`: Environmental feedback, task completion signals, or automated system notices.
+
+### 2.4 `type` Values
+
+- `USER_INPUT`: Represents an incoming user prompt, often wrapped with metadata tags.
+- `PLANNER_RESPONSE`: Represents model execution that may contain reasoning (`thinking`) and one or more `tool_calls`.
+- `GENERIC`: Execution results returned to the model (e.g. tool execution output, command results, file view returns).
+
+---
+
+## 3. Tool Call Data Structures
+
+When `tool_calls` are present on a step, each entry contains:
+
+```json
+{
+  "name": "tool_name_string",
+  "args": {
+    "key": "value"
+  }
+}
+```
+
+### 3.1 Standard Metadata in `args`
+Most built-in Antigravity tools include standard UX metadata fields:
+- `toolAction` (`string`): Brief active phrase (e.g. `"Running git status"`, `"Viewing file"`).
+- `toolSummary` (`string`): Noun phrase summary (e.g. `"Check git status"`, `"View file"`).
+
+### 3.2 Key Tool Argument Signatures
+
+| Tool Name | Key Arguments | Example Arguments |
+| :--- | :--- | :--- |
+| `run_command` | `CommandLine` (`string`), `Cwd` (`string`), `WaitMsBeforeAsync` (`int`), `BypassSandbox` (`bool`) | `{"CommandLine": "git status", "Cwd": "/path/to/repo"}` |
+| `view_file` | `AbsolutePath` (`string`), `StartLine` (`int`), `EndLine` (`int`) | `{"AbsolutePath": "/path/to/file.py", "StartLine": 1, "EndLine": 100}` |
+| `write_to_file` | `TargetFile` (`string`), `CodeContent` (`string`), `Overwrite` (`bool`), `Description` (`string`) | `{"TargetFile": "/path/to/file.py", "Overwrite": true}` |
+| `replace_file_content` | `TargetFile` (`string`), `StartLine` (`int`), `EndLine` (`int`), `TargetContent` (`string`), `ReplacementContent` (`string`) | `{"TargetFile": "/path/to/file.py", "TargetContent": "...", "ReplacementContent": "..."}` |
+| `list_dir` | `DirectoryPath` (`string`) | `{"DirectoryPath": "/path/to/dir"}` |
+| `find_by_name` | `SearchDirectory` (`string`), `Pattern` (`string`), `Extensions` (`list[string]`) | `{"SearchDirectory": "/path/to/dir", "Pattern": "*.py"}` |
+| `grep_search` | `SearchPath` (`string`), `Query` (`string`), `IsRegex` (`bool`), `MatchPerLine` (`bool`) | `{"SearchPath": "/path/to/dir", "Query": "functionName"}` |
+| `call_mcp_tool` | `ServerName` (`string`), `ToolName` (`string`), `Arguments` (`object`) | `{"ServerName": "chrome-devtools-mcp", "ToolName": "navigate_page"}` |
+| `invoke_subagent` | `Subagents` (`list[object]`) | `{"Subagents": [{"TypeName": "research", "Prompt": "..."}]}` |
+
+---
+
+## 4. Execution Step Outputs (`.system_generated/steps/`)
+
+For steps that produce substantial raw output (such as shell commands or large tool outputs):
+- File path: `.system_generated/steps/<step_index>/output.txt`
+- Format: Plain text (UTF-8 encoded)
+- Content: The raw stdout/stderr, tool return string, or command execution exit codes.
+- Relationship to transcripts: The `<step_index>` in the path directly corresponds to the `step_index` field of the step in `transcript.jsonl` / `transcript_full.jsonl`.
+
+---
+
+## 5. Metadata Extraction Rules & Parsing Heuristics
+
+Antigravity encodes runtime environment details and user context into initial and ongoing `USER_INPUT` steps. An explorer program should parse these patterns:
+
+### 5.1 User Request Text
+- **Pattern:** `<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>` (using `re.DOTALL`).
+- **Target:** First step where `type == "USER_INPUT"`.
+- **Fallback:** If XML tag is absent, use the full trimmed `content` string.
+
+### 5.2 Model Selection
+- **Pattern:** `setting \`Model Selection\` from .*? to ([^\n\r]+?)\.\s*No need`
+- **Example Match:** `Gemini 3.8 Flash (Medium)` from `<USER_SETTINGS_CHANGE>` block.
+
+### 5.3 Local Time & Client Timezone
+- **Pattern:** `The current local time is:\s*([^\n\r.]+)`
+- **Example Match:** `2026-09-10T18:41:53+10:00`
+
+### 5.4 Mentioned Items
+- **Pattern:** `@\[([^\]]+)\]`
+- **Filtering:** Exclude template placeholder `"ITEM"`, and deduplicate occurrences in order of appearance.
+
+### 5.5 Workspace Detection
+- Scan `full_steps` for tool calls where `args.get("Cwd")` is defined (e.g. from `run_command` tool calls), or check `<user_information>` workspace paths if present in user inputs.
+
+### 5.6 Duration & Session Lifespan
+- **Start Time:** `created_at` timestamp of the first step (`steps[0]`).
+- **End Time:** `created_at` timestamp of the final step (`steps[-1]`).
+- **Duration:** Calculated as `end_time - start_time` in seconds and formatted duration string.
+
+---
+
+## 6. Session Resolution & Discovery Algorithm
+
+An exploration program should support resolving sessions via three methods:
+
+1. **Direct Path Resolution:**
+   - Check if argument is a valid relative or absolute filesystem directory.
+   - Verify that `<arg>/.system_generated/logs/transcript.jsonl` or `transcript_full.jsonl` exists.
+
+2. **Standard Brain Root Discovery:**
+   - Scan default user storage directories:
+     - On macOS / Linux: `~/.gemini/antigravity*/brain/`
+   - Exact Match: If `<brain_dir>/<arg>` is a directory containing transcripts, resolve immediately.
+   - Most Recent Tiebreak: If multiple brain roots contain the exact session ID, choose the one with the latest modification timestamp (`st_mtime`).
+
+3. **Prefix / Fuzzy Match:**
+   - If argument is a leading prefix (e.g. `74126ecc`), scan all session directories in `~/.gemini/antigravity*/brain/`.
+   - Single match: Automatically resolve.
+   - Multiple matches: Return an error listing the matching session IDs and their source roots.
+   - No matches: Return a descriptive error listing the searched paths.
+
+---
+
+## 7. Functional Requirements for an Exploration Program
+
+An exploration tool (CLI, TUI, or Web/Desktop GUI) adhering to this specification should implement the following functional capabilities (matching `explore.py`):
+
+### 7.1 Command / View Specifications
+
+#### `summary`
+- **Inputs:** Session identifier.
+- **Outputs:**
+  - Session UUID and resolved filesystem directory path.
+  - Start timestamp, end timestamp, and total elapsed duration.
+  - Total step count.
+  - Extracted metadata: Model name, client local time, mentioned items, active workspace path.
+  - Scratch file count (`scratch/*`) and user uploaded file count (`.user_uploaded/*`).
+  - Extracted primary user request text.
+  - Tool invocation frequency table (count per tool name, sorted descending).
+- **JSON Format:** Single JSON object containing all summary fields.
+
+#### `steps` (Timeline View)
+- **Inputs:** Filter flags (`tools_only`, `user_only`), pagination (`limit`, `offset`).
+- **Outputs:** Tabular timeline showing:
+  - Step index (`#`).
+  - Formatted time (e.g. `HH:MM:SS`).
+  - Source (`USER_EXPLICIT`, `MODEL`, `SYSTEM`).
+  - Type (`USER_INPUT`, `PLANNER_RESPONSE`, `GENERIC`).
+  - Action / Preview string:
+    - If `tool_calls` present: Concatenated list of `name (toolAction)` or parameters.
+    - If `USER_INPUT`: Truncated user request text.
+    - If `GENERIC`: First line of content text.
+- **JSON Format:** Array of step summary objects.
+
+#### `step` (Detailed Inspection)
+- **Inputs:** `step_index`, `max_lines` (default 50).
+- **Outputs:**
+  - Metadata header banner: Step index, source, type, status, created_at.
+  - Full text content (if present).
+  - Internal thinking / reasoning (if present).
+  - Formatted tool calls with syntax-highlighted JSON arguments.
+  - Linked step execution output from `.system_generated/steps/<step_index>/output.txt` (if present), truncated to `max_lines` with truncation notice.
+- **JSON Format:** Full JSON object of step merged with `step_output` string.
+
+#### `tools` (Tool Invocation Audit)
+- **Inputs:** Session identifier.
+- **Outputs:** Chronological table of all tool invocations across the session:
+  - Step index.
+  - Tool name.
+  - Action / Summary (`toolAction` or `toolSummary`).
+  - Key target / parameter (e.g. `CommandLine` + `Cwd`, or `AbsolutePath`, or `TargetFile`).
+- **JSON Format:** Array of tool invocation records.
+
+#### `commands` (Shell Execution Audit)
+- **Inputs:** Session identifier.
+- **Outputs:** Specialized audit table for all `run_command` invocations:
+  - Step index.
+  - Target working directory (`Cwd`).
+  - Executed command line (`CommandLine`).
+- **JSON Format:** Array of command records including `args`, `wait_ms`, and `action`.
+
+#### `raw` (Raw Step Dump)
+- **Inputs:** `step_index`, toggle for `--full` vs `--compact`.
+- **Outputs:** Unaltered, formatted JSON payload of the requested step as stored in `transcript_full.jsonl` or `transcript.jsonl`.
+
+### 7.2 Universal Options
+- **Machine-Readable JSON Mode (`--json`):** Every command or data view must support outputting raw, structured JSON to stdout suitable for programmatic consumption or piping into utilities like `jq`.
