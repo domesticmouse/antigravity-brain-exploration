@@ -1,6 +1,6 @@
 # Antigravity Brain Exploration CLI (`agy-brain-explorer.py`)
 
-A fast, interactive CLI tool to inspect, debug, and analyze Google Antigravity session trajectories, transcripts, tool invocations, and execution step outputs.
+A python CLI tool to inspect Google Antigravity session trajectories, transcripts, tool invocations, and execution step outputs.
 
 Built with [Typer](https://typer.tiangolo.com/) and [Rich](https://github.com/Textualize/rich), `agy-brain-explorer.py` provides formatted terminal tables, color-coded status badges, syntax-highlighted tool payloads, and machine-readable JSON exports.
 
