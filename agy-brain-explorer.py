@@ -2,7 +2,6 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #     "typer>=0.12.0",
-#     "rich>=13.7.0",
 # ]
 # ///
 
@@ -18,15 +17,6 @@ from pathlib import Path
 from typing import Annotated, Any
 
 import typer
-from rich import box
-from rich.console import Console
-from rich.panel import Panel
-from rich.syntax import Syntax
-from rich.table import Table
-from rich.text import Text
-
-console = Console()
-err_console = Console(stderr=True)
 
 
 @dataclass
@@ -39,10 +29,9 @@ class SessionData:
     full_steps: list[dict[str, Any]]
     steps_by_index: dict[int, dict[str, Any]]
     full_steps_by_index: dict[int, dict[str, Any]]
-    as_json: bool = False
 
     @classmethod
-    def load(cls, session_dir: Path, as_json: bool = False) -> SessionData:
+    def load(cls, session_dir: Path) -> SessionData:
         session_dir = session_dir.resolve()
         if not session_dir.exists() or not session_dir.is_dir():
             raise typer.BadParameter(
@@ -94,7 +83,6 @@ class SessionData:
             full_steps=full_steps,
             steps_by_index=steps_by_index,
             full_steps_by_index=full_steps_by_index,
-            as_json=as_json,
         )
 
     def get_step_output_file(self, step_index: int) -> Path | None:
@@ -157,6 +145,19 @@ class SessionData:
         return meta
 
 
+def sanitize_md_cell(text: str | None) -> str:
+    """Sanitize text for use inside a Markdown table cell."""
+    if not text:
+        return ""
+    return (
+        text.replace("\r\n", " ")
+        .replace("\n", " ")
+        .replace("\r", " ")
+        .replace("|", "\\|")
+        .strip()
+    )
+
+
 @dataclass
 class TraceSummary:
     session_id: str
@@ -169,32 +170,9 @@ class TraceSummary:
     user_request: str
     model: str | None = None
 
-    def to_dict(self) -> dict[str, Any]:
-        local_time_str = ""
-        if self.created_dt:
-            try:
-                local_time_str = (
-                    self.created_dt.astimezone().isoformat()
-                    if self.created_dt.tzinfo
-                    else self.created_dt.isoformat()
-                )
-            except (ValueError, OSError):
-                local_time_str = self.created_at
-        return {
-            "session_id": self.session_id,
-            "source_brain": self.source_brain,
-            "directory": str(self.session_dir),
-            "created_at": self.created_at,
-            "created_at_local": local_time_str,
-            "updated_at": self.updated_at,
-            "step_count": self.step_count,
-            "user_request": self.user_request,
-            "model": self.model,
-        }
-
 
 def format_datetime_display(dt: datetime | None, raw_str: str) -> str:
-    """Format datetime for terminal table display in user local time if possible."""
+    """Format datetime for Markdown display in user local time if possible."""
     if dt is not None:
         with contextlib.suppress(ValueError, OSError):
             if dt.tzinfo is not None:
@@ -435,12 +413,11 @@ def find_session_directory(session_arg: str) -> Path:
 
 def run_interactive_session_picker(traces: list[TraceSummary]) -> None:
     """Allow interactive selection and exploration of traces."""
-    console.print()
-    console.print("[bold cyan]Interactive Trace Explorer[/bold cyan]")
+    print("\nInteractive Trace Explorer")
     while True:
         try:
-            choice = console.input(
-                f"\nEnter trace #[1-{len(traces)}] or session ID to inspect ([bold red]q[/bold red] to quit): "
+            choice = input(
+                f"\nEnter trace #[1-{len(traces)}] or session ID to inspect (q to quit): "
             ).strip()
         except (KeyboardInterrupt, EOFError):
             break
@@ -456,8 +433,9 @@ def run_interactive_session_picker(traces: list[TraceSummary]) -> None:
             if 1 <= idx <= len(traces):
                 selected_trace = traces[idx - 1]
             else:
-                err_console.print(
-                    f"[bold red]Error:[/bold red] Index {idx} out of range (1-{len(traces)})."
+                print(
+                    f"Error: Index {idx} out of range (1-{len(traces)}).",
+                    file=sys.stderr,
                 )
                 continue
         else:
@@ -467,24 +445,25 @@ def run_interactive_session_picker(traces: list[TraceSummary]) -> None:
             if len(matches) == 1:
                 selected_trace = matches[0]
             elif len(matches) > 1:
-                err_console.print(
-                    f"[bold red]Error:[/bold red] Multiple traces match '{choice}'. Please provide more characters."
+                print(
+                    f"Error: Multiple traces match '{choice}'. Please provide more characters.",
+                    file=sys.stderr,
                 )
                 continue
             else:
-                err_console.print(
-                    f"[bold red]Error:[/bold red] No trace matches '{choice}'."
+                print(
+                    f"Error: No trace matches '{choice}'.",
+                    file=sys.stderr,
                 )
                 continue
 
-        console.print(
-            f"\n[bold green]Selected session:[/bold green] [bold cyan]{selected_trace.session_id}[/bold cyan] "
-            f"({selected_trace.source_brain})"
+        print(
+            f"\nSelected session: {selected_trace.session_id} ({selected_trace.source_brain})"
         )
         session_data = SessionData.load(selected_trace.session_dir)
 
         action = (
-            console.input(
+            input(
                 "Action: [1] Summary (default), [2] Steps, [3] Tools, [4] Commands, [b] Back: "
             )
             .strip()
@@ -500,78 +479,44 @@ def run_interactive_session_picker(traces: list[TraceSummary]) -> None:
         elif action in ("4", "commands", "c"):
             show_commands(session_data)
         else:
-            show_summary(session_data, output_json=False)
+            show_summary(session_data)
 
 
 def run_explorer(
     limit: int | None = 30,
     asc: bool = False,
     brain_filter: str | None = None,
-    output_json: bool = False,
     interactive: bool = False,
 ) -> None:
-    """List or export all traces ordered chronologically by creation date/time."""
+    """List all traces in Markdown ordered chronologically by creation date/time."""
     traces = discover_traces(brain_filter=brain_filter, asc=asc)
 
-    if output_json:
-        out = [t.to_dict() for t in (traces[:limit] if limit else traces)]
-        print(json.dumps(out, indent=2))
-        return
-
     if not traces:
-        err_console.print(
-            "[bold yellow]No Antigravity conversation traces found under ~/.gemini.[/bold yellow]"
-        )
+        print("*No Antigravity conversation traces found under ~/.gemini.*")
         if brain_filter:
-            err_console.print(f"[dim]Filter applied: --brain {brain_filter}[/dim]")
+            print(f"\n*Filter applied: `--brain {brain_filter}`*")
         return
 
     traces_to_show = traces[:limit] if limit else traces
-
-    title_desc = f"Antigravity Conversation Traces ({len(traces)} total"
-    if brain_filter:
-        title_desc += f", filter: {brain_filter}"
     order_str = "oldest first" if asc else "newest first"
-    title_desc += f", {order_str})"
-
-    table = Table(
-        box=box.ROUNDED,
-        title=title_desc,
-        title_style="bold cyan",
-        expand=True,
-    )
-    table.add_column("#", style="dim", justify="right", min_width=3, max_width=4)
-    table.add_column("Created", style="bold cyan", min_width=16, max_width=16)
-    table.add_column("Brain", style="bold green", min_width=11, max_width=15)
-    table.add_column("Session ID", style="bold white", min_width=8, max_width=8)
-    table.add_column("Steps", style="yellow", justify="right", min_width=5, max_width=6)
-    table.add_column(
-        "User Request", style="white", ratio=1, overflow="ellipsis", no_wrap=True
-    )
-
+    header = f"### Antigravity Conversation Traces ({len(traces)} total"
+    if brain_filter:
+        header += f", filter: `{brain_filter}`"
+    header += f", {order_str})\n"
+    print(header)
+    print("| # | Created | Brain | Session ID | Steps | User Request |")
+    print("| :--- | :--- | :--- | :--- | :---: | :--- |")
     for idx, t in enumerate(traces_to_show, 1):
         created_display = format_datetime_display(t.created_dt, t.created_at)
-        table.add_row(
-            str(idx),
-            created_display,
-            t.source_brain,
-            t.session_id[:8],
-            str(t.step_count),
-            t.user_request[:80],
+        req_sanitized = sanitize_md_cell(t.user_request[:100])
+        session_link = f"[`{t.session_id[:8]}`](conversation://{t.session_id})"
+        print(
+            f"| {idx} | {created_display} | {t.source_brain} | {session_link} | {t.step_count} | {req_sanitized} |"
         )
-
-    console.print(table)
-
     if limit and len(traces) > limit:
-        console.print(
-            f"[dim]Showing {len(traces_to_show)} of {len(traces)} traces. Use --all or --limit to show more.[/dim]"
+        print(
+            f"\n*Showing {len(traces_to_show)} of {len(traces)} traces. Use `--all` or `--limit` to show more.*"
         )
-    else:
-        console.print(f"[dim]Showing all {len(traces_to_show)} traces.[/dim]")
-
-    console.print(
-        "[dim]Tip: Inspect any session with: uv run agy-brain-explorer.py <SESSION_ID>[/dim]"
-    )
 
     if interactive:
         run_interactive_session_picker(traces_to_show)
@@ -622,14 +567,15 @@ def explorer_callback(
             help="Filter traces by brain root directory name (e.g. 'antigravity-cli').",
         ),
     ] = None,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output trace listing as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output trace listing as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
     interactive: Annotated[
         bool,
         typer.Option(
@@ -644,7 +590,6 @@ def explorer_callback(
         limit=effective_limit,
         asc=asc,
         brain_filter=brain,
-        output_json=as_json,
         interactive=interactive,
     )
 
@@ -661,8 +606,8 @@ session_app = typer.Typer(
 )
 
 
-def show_summary(data: SessionData, output_json: bool) -> None:
-    """Render session summary either as JSON or formatted Rich tables."""
+def show_summary(data: SessionData) -> None:
+    """Render session summary as Markdown."""
     start_time: datetime | None = None
     end_time: datetime | None = None
     if data.steps:
@@ -674,9 +619,6 @@ def show_summary(data: SessionData, output_json: bool) -> None:
 
     duration_str = (
         str(end_time - start_time) if (start_time and end_time) else "unknown"
-    )
-    duration_sec = (
-        (end_time - start_time).total_seconds() if (start_time and end_time) else None
     )
 
     meta = data.get_metadata_info()
@@ -698,71 +640,33 @@ def show_summary(data: SessionData, output_json: bool) -> None:
             name = tc.get("name", "unknown")
             tool_counts[name] = tool_counts.get(name, 0) + 1
 
-    if output_json:
-        summary_dict = {
-            "session_id": data.session_id,
-            "directory": str(data.session_dir),
-            "started_at": start_time.isoformat() if start_time else None,
-            "ended_at": end_time.isoformat() if end_time else None,
-            "duration_seconds": duration_sec,
-            "duration": duration_str,
-            "total_steps": len(data.steps),
-            "metadata": meta,
-            "scratch_files": len(scratch_items),
-            "uploaded_files": len(uploaded_items),
-            "user_request": user_req,
-            "tool_invocations": tool_counts,
-        }
-        print(json.dumps(summary_dict, indent=2))
-        return
-
-    overview_table = Table(
-        box=box.ROUNDED,
-        show_header=False,
-        title="Session Overview",
-        title_style="bold cyan",
+    print(f"### Session Overview: `{data.session_id}`\n")
+    print("| Property | Value |")
+    print("| :--- | :--- |")
+    print(
+        f"| **Session ID** | [`{data.session_id}`](conversation://{data.session_id}) |"
     )
-    overview_table.add_column("Key", style="bold green", width=20)
-    overview_table.add_column("Value", style="white")
-
-    overview_table.add_row("Session ID", data.session_id)
-    overview_table.add_row("Directory", str(data.session_dir))
-    overview_table.add_row("Started At", str(start_time) if start_time else "unknown")
-    overview_table.add_row("Ended At", str(end_time) if end_time else "unknown")
-    overview_table.add_row("Duration", duration_str)
-    overview_table.add_row("Total Steps", str(len(data.steps)))
-
+    print(f"| **Directory** | `{data.session_dir}` |")
+    print(f"| **Started At** | {start_time if start_time else 'unknown'} |")
+    print(f"| **Ended At** | {end_time if end_time else 'unknown'} |")
+    print(f"| **Duration** | {duration_str} |")
+    print(f"| **Total Steps** | {len(data.steps)} |")
     for k, v in meta.items():
-        overview_table.add_row(k, v)
+        print(f"| **{sanitize_md_cell(k)}** | {sanitize_md_cell(str(v))} |")
+    print(f"| **Scratch Files** | {len(scratch_items)} |")
+    print(f"| **Uploaded Files** | {len(uploaded_items)} |\n")
 
-    overview_table.add_row("Scratch Files", str(len(scratch_items)))
-    overview_table.add_row("Uploaded Files", str(len(uploaded_items)))
-
-    console.print(overview_table)
-
-    # User Request Panel
-    console.print(
-        Panel(
-            user_req,
-            title="[bold yellow]User Request[/bold yellow]",
-            border_style="yellow",
-            box=box.ROUNDED,
-        )
-    )
+    print("#### Initial User Request")
+    print(f"> {sanitize_md_cell(user_req)}\n")
 
     if tool_counts:
-        tools_table = Table(
-            box=box.SIMPLE_HEAVY,
-            title="Tool Invocations",
-            title_style="bold magenta",
-        )
-        tools_table.add_column("Tool Name", style="bold cyan")
-        tools_table.add_column("Count", justify="right", style="bold white")
+        print("#### Tool Invocations")
+        print("| Tool Name | Count |")
+        print("| :--- | :---: |")
         for tool, count in sorted(
             tool_counts.items(), key=lambda item: item[1], reverse=True
         ):
-            tools_table.add_row(tool, str(count))
-        console.print(tools_table)
+            print(f"| `{tool}` | {count} |")
 
 
 def find_triggering_step(
@@ -787,22 +691,10 @@ def show_steps(
     user_only: bool = False,
     limit: int | None = None,
     offset: int = 0,
-    output_json: bool = False,
 ) -> None:
-    """Render conversation timeline steps as JSON or formatted table."""
-    table = Table(
-        box=box.ROUNDED,
-        title=f"Timeline for {data.session_id}",
-        title_style="bold cyan",
-    )
-    table.add_column("#", style="dim", justify="right", width=4)
-    table.add_column("Time", style="cyan", width=8)
-    table.add_column("Source", style="green", width=14)
-    table.add_column("Type", style="yellow", width=18)
-    table.add_column("Preview / Action", style="white")
-
+    """Render conversation timeline steps as Markdown."""
     matched = 0
-    json_results: list[dict[str, Any]] = []
+    md_results: list[tuple[int, str, str, str, str]] = []
 
     for s in data.full_steps:
         idx = s.get("step_index", 0)
@@ -831,8 +723,6 @@ def show_steps(
             pass
 
         # Build preview string
-        preview = ""
-        clean_preview = ""
         if tool_calls:
             calls_desc = []
             for tc in tool_calls:
@@ -849,7 +739,6 @@ def show_steps(
                 else:
                     calls_desc.append(name)
             clean_preview = "; ".join(calls_desc)
-            preview = "[bold magenta]" + clean_preview + "[/bold magenta]"
         elif tp == "USER_INPUT":
             content = s.get("content", "")
             m = re.search(
@@ -857,7 +746,6 @@ def show_steps(
             )
             clean_text = m.group(1).strip() if m else content.strip()
             clean_preview = clean_text.replace("\n", " ")[:90]
-            preview = clean_preview
         elif tp == "GENERIC":
             trigger = find_triggering_step(data, idx)
             if trigger:
@@ -865,142 +753,62 @@ def show_steps(
                 parent_tools = parent_step.get("tool_calls", [])
                 tools_desc = ", ".join(tc.get("name", "tool") for tc in parent_tools)
                 clean_preview = f"Result of Step {parent_idx} ({tools_desc})"
-                preview = f"[dim cyan]{clean_preview}[/dim cyan]"
             else:
                 content = s.get("content", "")
                 first_line = (
                     content.strip().splitlines()[0] if content.strip() else "(empty)"
                 )
                 clean_preview = first_line[:90]
-                preview = f"[dim]{clean_preview}[/dim]"
         else:
             content = s.get("content", "")
             clean_preview = content.replace("\n", " ")[:90]
-            preview = clean_preview
 
-        if output_json:
-            step_item: dict[str, Any] = {
-                "step_index": idx,
-                "time": time_str,
-                "created_at": s.get("created_at"),
-                "source": source,
-                "type": tp,
-                "status": s.get("status"),
-                "preview": clean_preview,
-                "has_tool_calls": bool(tool_calls),
-                "tool_calls": [
-                    {
-                        "name": tc.get("name"),
-                        "action": tc.get("args", {}).get("toolAction"),
-                        "summary": tc.get("args", {}).get("toolSummary"),
-                        "args": tc.get("args", {}),
-                    }
-                    for tc in tool_calls
-                ],
-            }
-            step_trigger = find_triggering_step(data, idx)
-            if step_trigger:
-                step_item["result_of_step"] = step_trigger[0]
-            json_results.append(step_item)
-        else:
-            table.add_row(str(idx), time_str, source, tp, preview)
-
+        md_results.append(
+            (idx, time_str, source, tp, sanitize_md_cell(clean_preview))
+        )
         matched += 1
 
-    if output_json:
-        print(json.dumps(json_results, indent=2))
-    else:
-        console.print(table)
+    print(f"### Timeline for `{data.session_id}`\n")
+    print("| Step | Time | Source | Type | Preview / Action |")
+    print("| :---: | :--- | :--- | :--- | :--- |")
+    for s_idx, t_str, src, s_type, p_view in md_results:
+        print(f"| {s_idx} | {t_str} | `{src}` | `{s_type}` | {p_view} |")
 
 
-def show_tools(data: SessionData, output_json: bool = False) -> None:
-    """Render list of all tool invocations as JSON or formatted table."""
-    if output_json:
-        tools_list: list[dict[str, Any]] = []
-        for s in data.full_steps:
-            idx = s.get("step_index", 0)
-            for tc in s.get("tool_calls", []):
-                args = tc.get("args", {})
-                tools_list.append(
-                    {
-                        "step_index": idx,
-                        "tool": tc.get("name", ""),
-                        "action": args.get("toolAction")
-                        or args.get("toolSummary")
-                        or "",
-                        "summary": args.get("toolSummary") or "",
-                        "args": args,
-                    }
-                )
-        print(json.dumps(tools_list, indent=2))
-        return
-
-    table = Table(box=box.ROUNDED, title="All Tool Calls", title_style="bold magenta")
-    table.add_column("Step", style="dim", justify="right", width=5)
-    table.add_column("Tool", style="bold cyan", width=14)
-    table.add_column("Action / Summary", style="yellow", width=25)
-    table.add_column("Parameters / Target", style="white")
-
+def show_tools(data: SessionData) -> None:
+    """Render list of all tool invocations as Markdown."""
+    print(f"### Tool Invocations for `{data.session_id}`\n")
+    print("| Step | Tool | Action / Summary | Parameters / Target |")
+    print("| :---: | :--- | :--- | :--- |")
     for s in data.full_steps:
         idx = s.get("step_index", 0)
-        tool_calls = s.get("tool_calls", [])
-        for tc in tool_calls:
+        for tc in s.get("tool_calls", []):
             name = tc.get("name", "")
             args = tc.get("args", {})
             action = args.get("toolAction") or args.get("toolSummary") or ""
-
             target = ""
             if "CommandLine" in args:
-                target = (
-                    f"[bold]{args['CommandLine']}[/bold] (cwd: {args.get('Cwd', '')})"
-                )
+                target = f"`{args['CommandLine']}` (cwd: `{args.get('Cwd', '')}`)"
             elif "AbsolutePath" in args:
-                target = args["AbsolutePath"]
+                target = f"`{args['AbsolutePath']}`"
             elif "DirectoryPath" in args:
-                target = args["DirectoryPath"]
+                target = f"`{args['DirectoryPath']}`"
             elif "TargetFile" in args:
-                target = args["TargetFile"]
+                target = f"`{args['TargetFile']}`"
             else:
                 target = json.dumps(
                     {k: v for k, v in args.items() if not k.startswith("tool")}
                 )[:80]
+            print(
+                f"| {idx} | `{name}` | {sanitize_md_cell(action)} | {sanitize_md_cell(target)} |"
+            )
 
-            table.add_row(str(idx), name, action, target)
 
-    console.print(table)
-
-
-def show_commands(data: SessionData, output_json: bool = False) -> None:
-    """Render list of all executed shell commands as JSON or formatted table."""
-    if output_json:
-        cmds_list: list[dict[str, Any]] = []
-        for s in data.full_steps:
-            idx = s.get("step_index", 0)
-            for tc in s.get("tool_calls", []):
-                if tc.get("name") == "run_command":
-                    args = tc.get("args", {})
-                    cmds_list.append(
-                        {
-                            "step_index": idx,
-                            "command": args.get("CommandLine", ""),
-                            "cwd": args.get("Cwd", ""),
-                            "action": args.get("toolAction")
-                            or args.get("toolSummary")
-                            or "",
-                            "wait_ms": args.get("WaitMsBeforeAsync"),
-                            "args": args,
-                        }
-                    )
-        print(json.dumps(cmds_list, indent=2))
-        return
-
-    table = Table(
-        box=box.ROUNDED, title="Executed Shell Commands", title_style="bold green"
-    )
-    table.add_column("Step", style="dim", justify="right", width=5)
-    table.add_column("Working Directory (Cwd)", style="cyan", width=30)
-    table.add_column("Command Line", style="bold white")
-
+def show_commands(data: SessionData) -> None:
+    """Render list of all executed shell commands as Markdown."""
+    print(f"### Executed Shell Commands for `{data.session_id}`\n")
+    print("| Step | Working Directory (Cwd) | Command Line |")
+    print("| :---: | :--- | :--- |")
     for s in data.full_steps:
         idx = s.get("step_index", 0)
         for tc in s.get("tool_calls", []):
@@ -1008,9 +816,9 @@ def show_commands(data: SessionData, output_json: bool = False) -> None:
                 args = tc.get("args", {})
                 cmd = args.get("CommandLine", "")
                 cwd = args.get("Cwd", "")
-                table.add_row(str(idx), cwd, cmd)
-
-    console.print(table)
+                print(
+                    f"| {idx} | `{sanitize_md_cell(cwd)}` | `{sanitize_md_cell(cmd)}` |"
+                )
 
 
 @session_app.callback(invoke_without_command=True)
@@ -1023,39 +831,40 @@ def session_callback(
             help="Path to session directory OR session ID (searched in ~/.gemini/**/brain).",
         ),
     ],
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
     """Initialize session data from a path or session ID (defaults to summary if no subcommand)."""
     session_dir = find_session_directory(session)
-    ctx.obj = SessionData.load(session_dir, as_json=as_json)
+    ctx.obj = SessionData.load(session_dir)
 
     if ctx.invoked_subcommand is None:
-        show_summary(ctx.obj, output_json=as_json)
+        show_summary(ctx.obj)
 
 
 @session_app.command(name="summary")
 def cmd_summary(
     ctx: typer.Context,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """Show high-level overview of the session, metadata, timing, and tool statistics."""
+    """Show high-level overview of the session, metadata, timing, and tool statistics as Markdown."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
-    show_summary(data, output_json=output_json)
+    show_summary(data)
 
 
 @session_app.command(name="steps")
@@ -1092,25 +901,24 @@ def cmd_steps(
             help="Number of steps to skip.",
         ),
     ] = 0,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """List timeline of conversation steps in a formatted table."""
+    """List timeline of conversation steps as Markdown."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
     show_steps(
         data,
         tools_only=tools_only,
         user_only=user_only,
         limit=limit,
         offset=offset,
-        output_json=output_json,
     )
 
 
@@ -1129,23 +937,24 @@ def cmd_step(
             help="Max lines of output to display.",
         ),
     ] = 50,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """Inspect detailed information, tool calls, and output of a specific step."""
+    """Inspect detailed information, tool calls, and output of a specific step in Markdown."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
 
     s = data.full_steps_by_index.get(step_index)
     if not s:
-        err_console.print(
-            f"[bold red]Error:[/bold red] Step index {step_index} not found in session."
+        print(
+            f"Error: Step index {step_index} not found in session.",
+            file=sys.stderr,
         )
         raise typer.Exit(code=1)
 
@@ -1161,131 +970,67 @@ def cmd_step(
         parent_idx, parent_step = trigger
         parent_tools = parent_step.get("tool_calls", [])
 
-    if output_json:
-        step_data = dict(s)
-        if trigger and parent_idx is not None:
-            step_data["result_of_step"] = parent_idx
-            step_data["triggering_tools"] = [
-                {
-                    "name": tc.get("name"),
-                    "action": tc.get("args", {}).get("toolAction")
-                    or tc.get("args", {}).get("toolSummary"),
-                    "args": tc.get("args", {}),
-                }
-                for tc in parent_tools
-            ]
-        if step_output_str is not None:
-            step_data["step_output"] = step_output_str
-        print(json.dumps(step_data, indent=2))
-        return
-
     source = s.get("source", "")
     tp = s.get("type", "")
     created_at = s.get("created_at", "")
     status = s.get("status", "")
 
-    header_parts = [
-        ("Step ", "bold white"),
-        (str(step_index), "bold cyan"),
-        ("  |  Source: ", "dim"),
-        (source, "green"),
-        ("  |  Type: ", "dim"),
-        (tp, "yellow"),
-    ]
+    print(f"### Step {step_index} Details\n")
+    print(f"- **Source**: `{source}`")
+    print(f"- **Type**: `{tp}`")
+    print(f"- **Status**: `{status}`")
+    print(f"- **Time**: `{created_at}`")
     if trigger and parent_idx is not None:
-        tool_names_str = ", ".join(tc.get("name", "tool") for tc in parent_tools)
-        header_parts.extend(
-            [
-                ("  |  Result of: ", "dim"),
-                (f"Step {parent_idx} ({tool_names_str})", "bold yellow"),
-            ]
+        tool_names_str = ", ".join(
+            f"`{tc.get('name', 'tool')}`" for tc in parent_tools
         )
-    header_parts.extend(
-        [
-            ("  |  Status: ", "dim"),
-            (status, "blue"),
-            ("  |  Time: ", "dim"),
-            (created_at, "magenta"),
-        ]
-    )
-    header_text = Text.assemble(*header_parts)
-    console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
+        print(f"- **Result of**: Step {parent_idx} ({tool_names_str})")
+    print()
 
-    # If this step is the result of a parent step, display the triggering tool context
     if trigger and parent_idx is not None:
-        tool_descs = []
+        print(f"#### Triggering Action (Step {parent_idx})")
         for tc in parent_tools:
             tname = tc.get("name", "unknown")
             targs = tc.get("args", {})
             action = targs.get("toolAction") or targs.get("toolSummary") or ""
-            target = ""
-            if "CommandLine" in targs:
-                target = f"Command: {targs['CommandLine']}"
-                if "Cwd" in targs:
-                    target += f" (cwd: {targs['Cwd']})"
-            elif "AbsolutePath" in targs:
-                target = f"Path: {targs['AbsolutePath']}"
-            elif "TargetFile" in targs:
-                target = f"File: {targs['TargetFile']}"
-            elif "DirectoryPath" in targs:
-                target = f"Directory: {targs['DirectoryPath']}"
-            elif "SearchDirectory" in targs:
-                target = f"Directory: {targs['SearchDirectory']}, Pattern: {targs.get('Pattern', '*')}"
-            elif "Query" in targs:
-                target = f"Query: {targs['Query']}"
-            elif "Url" in targs:
-                target = f"URL: {targs['Url']}"
-
-            desc_lines = [f"[bold cyan]Tool:[/bold cyan] {tname}"]
+            print(f"- **Tool**: `{tname}`")
             if action:
-                desc_lines.append(f"[bold green]Action:[/bold green] {action}")
-            if target:
-                desc_lines.append(f"[bold white]Target / Args:[/bold white] {target}")
-            tool_descs.append("\n".join(desc_lines))
+                print(f"  - **Action**: {action}")
+            if "CommandLine" in targs:
+                print(
+                    f"  - **Command**: `{targs['CommandLine']}` (cwd: `{targs.get('Cwd', '')}`)"
+                )
+            elif "AbsolutePath" in targs:
+                print(f"  - **Path**: `{targs['AbsolutePath']}`")
+            elif "TargetFile" in targs:
+                print(f"  - **File**: `{targs['TargetFile']}`")
+        print()
 
-        trigger_content = "\n\n".join(tool_descs)
-        console.print(
-            Panel(
-                trigger_content,
-                title=f"[bold yellow]Triggering Action (Step {parent_idx})[/bold yellow]",
-                box=box.ROUNDED,
-                border_style="yellow",
-            )
-        )
-
-    # Content
     content = s.get("content")
     if content:
-        console.print(
-            Panel(content, title="Content", box=box.ROUNDED, border_style="blue")
-        )
+        print("#### Content")
+        print("```")
+        print(content)
+        print("```\n")
 
-    # Thinking if present
     thinking = s.get("thinking")
     if thinking:
-        console.print(
-            Panel(thinking, title="Thinking", box=box.ROUNDED, border_style="dim")
-        )
+        print("#### Thinking")
+        print("```")
+        print(thinking)
+        print("```\n")
 
-    # Tool calls
     tool_calls = s.get("tool_calls", [])
     if tool_calls:
-        for idx, tc in enumerate(tool_calls, 1):
+        print("#### Tool Calls")
+        for tc_idx, tc in enumerate(tool_calls, 1):
             name = tc.get("name", "unknown")
             args = tc.get("args", {})
-            args_json = json.dumps(args, indent=2)
-            syntax = Syntax(args_json, "json", theme="monokai", word_wrap=True)
-            console.print(
-                Panel(
-                    syntax,
-                    title=f"[bold magenta]Tool Call #{idx}: {name}[/bold magenta]",
-                    box=box.ROUNDED,
-                    border_style="magenta",
-                )
-            )
+            print(f"**Tool Call #{tc_idx}: `{name}`**")
+            print("```json")
+            print(json.dumps(args, indent=2))
+            print("```\n")
 
-    # Step execution output file if present
-    # Avoid duplicate output if step_output_str is already represented in content
     if step_output_str is not None and step_out_file:
         is_duplicate = bool(content and step_output_str.strip() in content.strip())
         if not is_duplicate:
@@ -1299,52 +1044,49 @@ def cmd_step(
                 truncated = True
             else:
                 display_text = step_output_str
-
-            console.print(
-                Panel(
-                    display_text,
-                    title=f"[bold green]Step Output ({step_out_file.name})[/bold green]"
-                    + (" [dim](truncated)[/dim]" if truncated else ""),
-                    box=box.ROUNDED,
-                    border_style="green",
-                )
+            print(
+                f"#### Step Output (`{step_out_file.name}`)"
+                + (" *(truncated)*" if truncated else "")
             )
+            print("```")
+            print(display_text)
+            print("```\n")
 
 
 @session_app.command(name="tools")
 def cmd_tools(
     ctx: typer.Context,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """List all tool calls executed throughout the entire session."""
+    """List all tool calls executed throughout the entire session as Markdown."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
-    show_tools(data, output_json=output_json)
+    show_tools(data)
 
 
 @session_app.command(name="commands")
 def cmd_commands(
     ctx: typer.Context,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """List all shell commands run via run_command with details and working directories."""
+    """List all shell commands run via run_command with details and working directories as Markdown."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
-    show_commands(data, output_json=output_json)
+    show_commands(data)
 
 
 @session_app.command(name="raw")
@@ -1361,31 +1103,30 @@ def cmd_raw(
             help="Use transcript_full vs compact transcript.",
         ),
     ] = True,
-    as_json: Annotated[
+    as_markdown: Annotated[
         bool,
         typer.Option(
-            "--json",
-            "-j",
-            help="Output results as JSON formatted content.",
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
         ),
-    ] = False,
+    ] = True,
 ) -> None:
-    """Print the raw JSON record of a specific step."""
+    """Print the raw JSON record of a specific step in a Markdown code block."""
     data: SessionData = ctx.obj
-    output_json = as_json or data.as_json
 
     lookup = data.full_steps_by_index if full else data.steps_by_index
     s = lookup.get(step_index)
     if not s:
-        err_console.print(f"[bold red]Error:[/bold red] Step {step_index} not found.")
+        print(f"Error: Step {step_index} not found.", file=sys.stderr)
         raise typer.Exit(code=1)
 
     json_str = json.dumps(s, indent=2)
-    if output_json:
-        print(json_str)
-    else:
-        syntax = Syntax(json_str, "json", theme="monokai", word_wrap=True)
-        console.print(syntax)
+    print(f"### Raw Step {step_index} Record\n")
+    print("```json")
+    print(json_str)
+    print("```")
 
 
 # ---------------------------------------------------------------------------
@@ -1411,7 +1152,7 @@ def is_explorer_invocation(args: list[str]) -> bool:
             non_opts.append(a)
 
     if not non_opts:
-        # No arguments or only flags (e.g. `agy-brain-explorer.py` or `--json`)
+        # No arguments or only flags (e.g. `agy-brain-explorer.py` or `--md`)
         return True
 
     return non_opts[0] in explorer_cmds

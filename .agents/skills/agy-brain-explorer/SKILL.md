@@ -1,0 +1,110 @@
+---
+name: agy-brain-explorer
+description: >-
+  Discover, list, inspect, and audit Google Antigravity session trajectories,
+  transcripts, tool invocations, and execution steps across all brain storage
+  directories under ~/.gemini. Use whenever asked to list recent/past sessions,
+  review session histories, inspect tool executions, or debug trajectory steps.
+---
+
+# Antigravity Brain Explorer Skill
+
+This skill provides procedures and commands to discover, inspect, and audit Antigravity session trajectories and conversation logs using the helper script [`agy-brain-explorer.py`](file:///Users/brett/Documents/GitHub/antigravity-brain-exploration/agy-brain-explorer.py).
+
+## Execution Environment & Prerequisites
+
+### 1. Always Run via `uv`
+Run Python scripts using [`uv`](https://docs.astral.sh/uv/) so PEP 723 inline script dependencies (`typer>=0.12.0`) are automatically resolved and cached without manual virtual environment management:
+
+```bash
+uv run agy-brain-explorer.py [OPTIONS] [COMMAND]
+```
+
+When invoking from outside the repository root, reference the full skill script path:
+```bash
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
+```
+
+### 2. Mandatory Bypass Sandbox (`BypassSandbox: true`)
+> [!IMPORTANT]
+> **Always set `BypassSandbox: true` when executing `run_command`.**
+> 1. Running `uv run` inside Antigravity's standard sandbox fails with `Operation not permitted (os error 1)` when attempting to spawn the Python process.
+> 2. Discovering and inspecting session trajectories requires reading directory structures and JSONL transcripts located in user storage at `~/.gemini/**/brain/`, which reside outside the workspace sandbox boundary.
+
+### 3. Native Markdown Rendering
+> [!TIP]
+> **All results render directly as GitHub Flavored Markdown.**
+> Session IDs are formatted with Antigravity UI links (`[<short_id>](conversation://<full_session_uuid>)`) so the user can click directly into past conversations from chat.
+
+---
+
+## Workflows & Command Reference
+
+### 1. Discover and List Recent Sessions
+
+Scan all brain directories under `~/.gemini` and display conversation traces ordered chronologically (newest first):
+
+```bash
+# List most recent 10 sessions formatted as Markdown with clickable conversation links (default)
+uv run agy-brain-explorer.py --limit 10
+
+# Filter by a specific brain root (e.g., 'antigravity-cli' or 'antigravity')
+uv run agy-brain-explorer.py --brain antigravity --limit 10
+```
+
+### 2. Inspect Session Overview (`summary`)
+
+Pass a session UUID, partial prefix (e.g. `c1e9ba23`), or directory path to view metadata, timing, duration, model, workspace, and tool usage frequencies:
+
+```bash
+# Markdown formatted overview (default)
+uv run agy-brain-explorer.py <SESSION_ID_OR_PREFIX>
+```
+
+### 3. Browse Conversation Timeline (`steps`)
+
+Display conversation turns with step numbers, timestamps, sources (`USER_EXPLICIT`, `MODEL`), types, and preview/actions:
+
+```bash
+# Markdown table of conversation steps (Recommended)
+# Markdown table of conversation steps (default)
+uv run agy-brain-explorer.py <SESSION> steps --limit 20
+
+# Filter to steps that called tools
+uv run agy-brain-explorer.py <SESSION> steps --tools-only
+
+# Filter to user prompt steps only
+uv run agy-brain-explorer.py <SESSION> steps --user-only
+```
+
+### 4. Drill Down into a Specific Step (`step`)
+
+Inspect the user prompt, model thinking, exact tool call parameters, triggering action, and step output logs:
+
+```bash
+# View step 5 details formatted in Markdown
+uv run agy-brain-explorer.py <SESSION> step 5
+
+# Limit step output log preview to 100 lines
+uv run agy-brain-explorer.py <SESSION> step 5 --lines 100
+```
+
+### 5. Audit Tool & Command Executions
+
+Quickly review all tool invocations or shell commands run during a session:
+
+```bash
+# List all tool invocations with targets and parameters in Markdown
+uv run agy-brain-explorer.py <SESSION> tools
+
+# Audit all shell commands run via run_command with working directories in Markdown
+uv run agy-brain-explorer.py <SESSION> commands
+```
+
+### 6. Inspect Raw JSON Records (`raw`)
+
+Retrieve untruncated JSON step data from `transcript_full.jsonl`:
+
+```bash
+uv run agy-brain-explorer.py <SESSION> raw 1 --full
+```
