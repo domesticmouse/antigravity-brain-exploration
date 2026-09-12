@@ -9,20 +9,21 @@ description: >-
 
 # Antigravity Brain Explorer Skill
 
-This skill provides procedures and commands to discover, inspect, and audit Antigravity session trajectories and conversation logs using the helper script [`agy-brain-explorer.py`](file:///Users/brett/Documents/GitHub/antigravity-brain-exploration/agy-brain-explorer.py).
+This skill provides procedures and commands to discover, inspect, and audit Antigravity session trajectories and conversation logs using the helper script [`agy-brain-explorer.py`](scripts/agy-brain-explorer.py).
 
 ## Execution Environment & Prerequisites
 
 ### 1. Always Run via `uv`
-Run Python scripts using [`uv`](https://docs.astral.sh/uv/) so PEP 723 inline script dependencies (`typer>=0.12.0`) are automatically resolved and cached without manual virtual environment management:
+Run Python scripts using [`uv`](https://docs.astral.sh/uv/) so PEP 723 inline script dependencies (`typer>=0.12.0`) are automatically resolved and cached without manual virtual environment management.
 
-```bash
-uv run agy-brain-explorer.py [OPTIONS] [COMMAND]
-```
-
-When invoking from outside the repository root, reference the full skill script path:
+From the workspace root:
 ```bash
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
+```
+
+Or from the skill folder:
+```bash
+uv run scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
 ```
 
 ### 2. Mandatory Bypass Sandbox (`BypassSandbox: true`)
@@ -46,10 +47,10 @@ Scan all brain directories under `~/.gemini` and display conversation traces ord
 
 ```bash
 # List most recent 10 sessions formatted as Markdown with clickable conversation links (default)
-uv run agy-brain-explorer.py --limit 10
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10
 
 # Filter by a specific brain root (e.g., 'antigravity-cli' or 'antigravity')
-uv run agy-brain-explorer.py --brain antigravity --limit 10
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --brain antigravity --limit 10
 ```
 
 ### 2. Inspect Session Overview (`summary`)
@@ -58,7 +59,7 @@ Pass a session UUID, partial prefix (e.g. `c1e9ba23`), or directory path to view
 
 ```bash
 # Markdown formatted overview (default)
-uv run agy-brain-explorer.py <SESSION_ID_OR_PREFIX>
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION_ID_OR_PREFIX>
 ```
 
 ### 3. Browse Conversation Timeline (`steps`)
@@ -66,15 +67,14 @@ uv run agy-brain-explorer.py <SESSION_ID_OR_PREFIX>
 Display conversation turns with step numbers, timestamps, sources (`USER_EXPLICIT`, `MODEL`), types, and preview/actions:
 
 ```bash
-# Markdown table of conversation steps (Recommended)
 # Markdown table of conversation steps (default)
-uv run agy-brain-explorer.py <SESSION> steps --limit 20
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> steps --limit 20
 
 # Filter to steps that called tools
-uv run agy-brain-explorer.py <SESSION> steps --tools-only
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> steps --tools-only
 
 # Filter to user prompt steps only
-uv run agy-brain-explorer.py <SESSION> steps --user-only
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> steps --user-only
 ```
 
 ### 4. Drill Down into a Specific Step (`step`)
@@ -83,10 +83,10 @@ Inspect the user prompt, model thinking, exact tool call parameters, triggering 
 
 ```bash
 # View step 5 details formatted in Markdown
-uv run agy-brain-explorer.py <SESSION> step 5
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> step 5
 
 # Limit step output log preview to 100 lines
-uv run agy-brain-explorer.py <SESSION> step 5 --lines 100
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> step 5 --lines 100
 ```
 
 ### 5. Audit Tool & Command Executions
@@ -95,10 +95,10 @@ Quickly review all tool invocations or shell commands run during a session:
 
 ```bash
 # List all tool invocations with targets and parameters in Markdown
-uv run agy-brain-explorer.py <SESSION> tools
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> tools
 
 # Audit all shell commands run via run_command with working directories in Markdown
-uv run agy-brain-explorer.py <SESSION> commands
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> commands
 ```
 
 ### 6. Inspect Raw JSON Records (`raw`)
@@ -106,5 +106,5 @@ uv run agy-brain-explorer.py <SESSION> commands
 Retrieve untruncated JSON step data from `transcript_full.jsonl`:
 
 ```bash
-uv run agy-brain-explorer.py <SESSION> raw 1 --full
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> raw 1 --full
 ```
