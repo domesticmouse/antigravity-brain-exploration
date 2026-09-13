@@ -168,7 +168,66 @@ class TraceSummary:
     updated_at: str
     step_count: int
     user_request: str
+    full_user_request: str = ""
     model: str | None = None
+
+
+def extract_snippet(text: str, query: str, max_length: int = 120) -> str:
+    """Extract an excerpt of text surrounding the query match."""
+    if not text:
+        return ""
+    clean = text.replace("\r\n", " ").replace("\n", " ").replace("\r", " ").strip()
+    idx = clean.lower().find(query.lower())
+    if idx == -1:
+        return clean[:max_length] + ("..." if len(clean) > max_length else "")
+    start = max(0, idx - 35)
+    end = min(len(clean), idx + len(query) + 55)
+    snippet = clean[start:end].strip()
+    if start > 0:
+        snippet = "..." + snippet
+    if end < len(clean):
+        snippet = snippet + "..."
+    return snippet
+
+
+def step_matches_query(step: dict[str, Any], query: str) -> tuple[bool, str]:
+    """Check if a step matches the query and return (matched, description/snippet)."""
+    q = query.lower()
+
+    # Check tool calls
+    for tc in step.get("tool_calls", []):
+        name = tc.get("name", "")
+        args = tc.get("args", {})
+        cmd = args.get("CommandLine", "")
+        path = args.get("AbsolutePath", "") or args.get("TargetFile", "")
+        action = args.get("toolAction", "")
+        summary = args.get("toolSummary", "")
+        args_dump = json.dumps(args, ensure_ascii=False)
+        if (
+            q in name.lower()
+            or q in cmd.lower()
+            or q in path.lower()
+            or q in action.lower()
+            or q in summary.lower()
+            or q in args_dump.lower()
+        ):
+            target = cmd or path or action or summary or name
+            snippet = extract_snippet(target, query, max_length=100)
+            return True, f"`{name}`: {snippet}"
+
+    # Check content
+    content = step.get("content", "")
+    if content and q in content.lower():
+        m = re.search(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", content, re.DOTALL)
+        text = m.group(1).strip() if m else content
+        return True, extract_snippet(text, query, max_length=120)
+
+    # Check thinking
+    thinking = step.get("thinking", "")
+    if thinking and q in thinking.lower():
+        return True, f"[thinking] {extract_snippet(thinking, query, max_length=120)}"
+
+    return False, ""
 
 
 def format_datetime_display(dt: datetime | None, raw_str: str) -> str:
@@ -209,6 +268,7 @@ def find_all_brain_directories() -> list[Path]:
 def discover_traces(
     brain_filter: str | None = None,
     asc: bool = False,
+    query: str | None = None,
 ) -> list[TraceSummary]:
     """Scan all brain directories under ~/.gemini and return traces sorted chronologically by creation date/time."""
     brain_dirs = find_all_brain_directories()
@@ -282,6 +342,10 @@ def discover_traces(
                         if m_model:
                             model_name = m_model.group(1).strip()
 
+            clean_full_req = (user_req or "(none)").replace("\n", " ").strip()
+            if query and query.lower() not in clean_full_req.lower():
+                continue
+
             if first_created_str:
                 with contextlib.suppress(ValueError, TypeError):
                     first_created_dt = datetime.fromisoformat(
@@ -311,7 +375,8 @@ def discover_traces(
                     created_dt=first_created_dt,
                     updated_at=last_created_str or "",
                     step_count=step_count,
-                    user_request=(user_req or "(none)").replace("\n", " ")[:90],
+                    user_request=clean_full_req[:90],
+                    full_user_request=clean_full_req,
                     model=model_name,
                 )
             )
@@ -486,15 +551,21 @@ def run_explorer(
     limit: int | None = 30,
     asc: bool = False,
     brain_filter: str | None = None,
+    query: str | None = None,
     interactive: bool = False,
 ) -> None:
     """List all traces in Markdown ordered chronologically by creation date/time."""
-    traces = discover_traces(brain_filter=brain_filter, asc=asc)
+    traces = discover_traces(brain_filter=brain_filter, asc=asc, query=query)
 
     if not traces:
         print("*No Antigravity conversation traces found under ~/.gemini.*")
+        filters = []
         if brain_filter:
-            print(f"\n*Filter applied: `--brain {brain_filter}`*")
+            filters.append(f"`--brain {brain_filter}`")
+        if query:
+            filters.append(f"`--query {query}`")
+        if filters:
+            print(f"\n*Filters applied: {', '.join(filters)}*")
         return
 
     traces_to_show = traces[:limit] if limit else traces
@@ -502,13 +573,21 @@ def run_explorer(
     header = f"### Antigravity Conversation Traces ({len(traces)} total"
     if brain_filter:
         header += f", filter: `{brain_filter}`"
+    if query:
+        header += f", query: `{query}`"
     header += f", {order_str})\n"
     print(header)
     print("| # | Created | Brain | Session ID | Steps | User Request |")
     print("| :--- | :--- | :--- | :--- | :---: | :--- |")
     for idx, t in enumerate(traces_to_show, 1):
         created_display = format_datetime_display(t.created_dt, t.created_at)
-        req_sanitized = sanitize_md_cell(t.user_request[:100])
+        if query:
+            req_display = extract_snippet(
+                t.full_user_request or t.user_request, query, max_length=120
+            )
+        else:
+            req_display = t.user_request[:100]
+        req_sanitized = sanitize_md_cell(req_display)
         session_link = f"[`{t.session_id[:8]}`](conversation://{t.session_id})"
         print(
             f"| {idx} | {created_display} | {t.source_brain} | {session_link} | {t.step_count} | {req_sanitized} |"
@@ -567,6 +646,16 @@ def explorer_callback(
             help="Filter traces by brain root directory name (e.g. 'antigravity-cli').",
         ),
     ] = None,
+    query: Annotated[
+        str | None,
+        typer.Option(
+            "--query",
+            "-q",
+            "--search",
+            "-s",
+            help="Filter traces by text occurring in the initial user request.",
+        ),
+    ] = None,
     as_markdown: Annotated[
         bool,
         typer.Option(
@@ -585,13 +674,164 @@ def explorer_callback(
         ),
     ] = False,
 ) -> None:
+    if ctx.invoked_subcommand is not None:
+        return
     effective_limit = None if all_traces else limit
     run_explorer(
         limit=effective_limit,
         asc=asc,
         brain_filter=brain,
+        query=query,
         interactive=interactive,
     )
+
+
+@explorer_app.command(name="search")
+def cmd_explorer_search(
+    query: Annotated[
+        str,
+        typer.Argument(help="Search query text or keyword."),
+    ],
+    all_steps: Annotated[
+        bool,
+        typer.Option(
+            "--all-steps",
+            "-s",
+            help="Deep search across all conversation steps (user requests, model responses, tool invocations, commands). Default searches initial user request only.",
+        ),
+    ] = False,
+    brain: Annotated[
+        str | None,
+        typer.Option(
+            "--brain",
+            "-b",
+            help="Filter search to specific brain root directory (e.g. 'antigravity-cli').",
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            "--limit",
+            "-n",
+            help="Limit number of results returned (default: 30).",
+        ),
+    ] = 30,
+    all_results: Annotated[
+        bool,
+        typer.Option(
+            "--all",
+            "-a",
+            help="Return all results without pagination limit.",
+        ),
+    ] = False,
+) -> None:
+    """Search conversation sessions by initial prompt, or deeply across all steps."""
+    effective_limit = None if all_results else limit
+
+    if not all_steps:
+        traces = discover_traces(brain_filter=brain, query=query)
+        header = f"### Session Search Results for \"{query}\" in Initial User Requests ({len(traces)} sessions found"
+        if brain:
+            header += f", brain: `{brain}`"
+        header += ")\n"
+        print(header)
+
+        if not traces:
+            print("*No sessions matched your query in their initial user prompt.*")
+            return
+
+        traces_to_show = traces[:effective_limit] if effective_limit else traces
+        print("| # | Created | Brain | Session ID | Steps | Matched User Request |")
+        print("| :--- | :--- | :--- | :--- | :---: | :--- |")
+        for idx, t in enumerate(traces_to_show, 1):
+            created_display = format_datetime_display(t.created_dt, t.created_at)
+            req_text = t.full_user_request or t.user_request
+            snippet = extract_snippet(req_text, query, max_length=120)
+            session_link = f"[`{t.session_id[:8]}`](conversation://{t.session_id})"
+            print(
+                f"| {idx} | {created_display} | {t.source_brain} | {session_link} | {t.step_count} | {sanitize_md_cell(snippet)} |"
+            )
+
+        if effective_limit and len(traces) > effective_limit:
+            print(
+                f"\n*Showing {len(traces_to_show)} of {len(traces)} sessions. Use `--all` or `--limit` to show more.*"
+            )
+    else:
+        brain_dirs = find_all_brain_directories()
+        step_matches: list[dict[str, Any]] = []
+
+        for b in brain_dirs:
+            source_brain = b.parent.name
+            if brain and brain.lower() not in source_brain.lower():
+                continue
+            try:
+                entries = list(b.iterdir())
+            except OSError:
+                continue
+
+            for s_dir in entries:
+                if not s_dir.is_dir():
+                    continue
+                logs = s_dir / ".system_generated" / "logs"
+                t_compact = logs / "transcript.jsonl"
+                t_full = logs / "transcript_full.jsonl"
+                t_file = (
+                    t_compact
+                    if t_compact.exists()
+                    else (t_full if t_full.exists() else None)
+                )
+                if not t_file:
+                    continue
+
+                with (
+                    contextlib.suppress(
+                        json.JSONDecodeError, OSError, UnicodeDecodeError
+                    ),
+                    open(t_file, encoding="utf-8") as f,
+                ):
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        step_data = json.loads(line)
+                        matched, desc = step_matches_query(step_data, query)
+                        if matched:
+                            step_matches.append(
+                                {
+                                    "session_id": s_dir.name,
+                                    "source_brain": source_brain,
+                                    "step_index": step_data.get("step_index", 0),
+                                    "type": step_data.get("type", ""),
+                                    "created_at": step_data.get("created_at", ""),
+                                    "desc": desc,
+                                }
+                            )
+
+        header = f"### Deep Search Results for \"{query}\" across All Steps ({len(step_matches)} steps matched"
+        if brain:
+            header += f", brain: `{brain}`"
+        header += ")\n"
+        print(header)
+
+        if not step_matches:
+            print("*No steps matched your query across discovered sessions.*")
+            return
+
+        to_show = step_matches[:effective_limit] if effective_limit else step_matches
+        print("| # | Session ID | Brain | Step | Type | Matched Excerpt |")
+        print("| :--- | :--- | :--- | :---: | :--- | :--- |")
+        for idx, m in enumerate(to_show, 1):
+            session_link = f"[`{m['session_id'][:8]}`](conversation://{m['session_id']})"
+            clean_desc = sanitize_md_cell(m["desc"])
+            print(
+                f"| {idx} | {session_link} | {m['source_brain']} | {m['step_index']} | {m['type']} | {clean_desc} |"
+            )
+
+        if effective_limit and len(step_matches) > effective_limit:
+            print(
+                f"\n*Showing {len(to_show)} of {len(step_matches)} matches. Use `--all` or `--limit` to show more.*"
+            )
+
 
 
 # ---------------------------------------------------------------------------
@@ -1129,6 +1369,67 @@ def cmd_raw(
     print("```")
 
 
+@session_app.command(name="search")
+def cmd_session_search(
+    ctx: typer.Context,
+    query: Annotated[
+        str,
+        typer.Argument(help="Search query text or keyword within this session."),
+    ],
+    full: Annotated[
+        bool,
+        typer.Option(
+            "--full/--compact",
+            help="Search in full transcript vs compact transcript.",
+        ),
+    ] = True,
+    limit: Annotated[
+        int | None,
+        typer.Option(
+            "--limit",
+            "-n",
+            help="Limit number of matching steps displayed.",
+        ),
+    ] = None,
+) -> None:
+    """Search for matching steps, tool invocations, or content within this session."""
+    data: SessionData = ctx.obj
+    steps_to_search = data.full_steps if full else data.steps
+
+    matches: list[tuple[int, str, str, str, str]] = []
+    for s in steps_to_search:
+        matched, desc = step_matches_query(s, query)
+        if matched:
+            idx = s.get("step_index", 0)
+            tp = s.get("type", "")
+            source = s.get("source", "")
+            time_str = ""
+            with contextlib.suppress(ValueError, TypeError):
+                time_str = datetime.fromisoformat(
+                    s.get("created_at", "")
+                ).strftime("%H:%M:%S")
+            matches.append((idx, time_str, source, tp, desc))
+
+    print(
+        f"### Search Results in Session `{data.session_id}` for \"{query}\" ({len(matches)} matching steps)\n"
+    )
+    if not matches:
+        print("*No matching steps found.*")
+        return
+
+    items_to_show = matches[:limit] if limit else matches
+    print("| Step | Time | Source | Type | Matching Excerpt |")
+    print("| :---: | :--- | :--- | :--- | :--- |")
+    for idx, time_str, source, tp, desc in items_to_show:
+        clean_desc = sanitize_md_cell(desc)
+        print(f"| {idx} | {time_str} | {source} | {tp} | {clean_desc} |")
+
+    if limit and len(matches) > limit:
+        print(
+            f"\n*Showing {len(items_to_show)} of {len(matches)} matching steps.*"
+        )
+
+
 # ---------------------------------------------------------------------------
 # CLI Routing Entrypoint
 # ---------------------------------------------------------------------------
@@ -1136,8 +1437,20 @@ def cmd_raw(
 
 def is_explorer_invocation(args: list[str]) -> bool:
     """Determine whether the invocation targets the trace explorer or a single session."""
-    explorer_cmds = {"list", "explore", "traces"}
-    val_flags = {"--limit", "-n", "--brain", "-b", "--offset", "--lines", "-l"}
+    explorer_cmds = {"list", "explore", "traces", "search"}
+    val_flags = {
+        "--limit",
+        "-n",
+        "--brain",
+        "-b",
+        "--offset",
+        "--lines",
+        "-l",
+        "--query",
+        "-q",
+        "--search",
+        "-s",
+    }
     non_opts: list[str] = []
     skip_next = False
 
@@ -1165,11 +1478,11 @@ def main() -> None:
 
     if is_explorer_invocation(args):
         # Explorer mode
-        explorer_cmds = {"list", "explore", "traces"}
+        alias_cmds = {"list", "explore", "traces"}
         filtered_args: list[str] = []
         stripped_cmd = False
         for a in args:
-            if not stripped_cmd and a in explorer_cmds:
+            if not stripped_cmd and a in alias_cmds:
                 stripped_cmd = True
                 continue
             filtered_args.append(a)
@@ -1177,7 +1490,15 @@ def main() -> None:
         explorer_app()
     else:
         # Session inspection mode
-        session_subcommands = {"summary", "steps", "step", "tools", "commands", "raw"}
+        session_subcommands = {
+            "summary",
+            "steps",
+            "step",
+            "tools",
+            "commands",
+            "raw",
+            "search",
+        }
         has_subcommand = any(arg in session_subcommands for arg in args)
         final_args = list(args)
         if not has_subcommand and not any(arg in help_flags for arg in args):

@@ -51,9 +51,30 @@ uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 1
 
 # Filter by a specific brain root (e.g., 'antigravity-cli' or 'antigravity')
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --brain antigravity --limit 10
+
+# Filter sessions by initial user prompt query
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py -q "Please build a unified static HTML"
 ```
 
-### 2. Inspect Session Overview (`summary`)
+### 2. Search Sessions by Prompt or Deep Transcript (`search`)
+
+Find sessions matching a prompt keyword or search across conversation turns and tool calls:
+
+```bash
+# Search sessions by initial prompt across all brain directories
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "Please build a unified static HTML"
+
+# Filter search by brain root
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build static docs" --brain antigravity-cli
+
+# Deep search across all conversation steps (user requests, model responses, tool args, commands)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build-docs-site.js" --all-steps
+
+# Search within a single specific session
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> search "node --test"
+```
+
+### 3. Inspect Session Overview (`summary`)
 
 Pass a session UUID, partial prefix (e.g. `c1e9ba23`), or directory path to view metadata, timing, duration, model, workspace, and tool usage frequencies:
 
@@ -62,7 +83,7 @@ Pass a session UUID, partial prefix (e.g. `c1e9ba23`), or directory path to view
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION_ID_OR_PREFIX>
 ```
 
-### 3. Browse Conversation Timeline (`steps`)
+### 4. Browse Conversation Timeline (`steps`)
 
 Display conversation turns with step numbers, timestamps, sources (`USER_EXPLICIT`, `MODEL`), types, and preview/actions:
 
@@ -77,7 +98,7 @@ uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION>
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> steps --user-only
 ```
 
-### 4. Drill Down into a Specific Step (`step`)
+### 5. Drill Down into a Specific Step (`step`)
 
 Inspect the user prompt, model thinking, exact tool call parameters, triggering action, and step output logs:
 
@@ -89,7 +110,7 @@ uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION>
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> step 5 --lines 100
 ```
 
-### 5. Audit Tool & Command Executions
+### 6. Audit Tool & Command Executions
 
 Quickly review all tool invocations or shell commands run during a session:
 
@@ -101,7 +122,7 @@ uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION>
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> commands
 ```
 
-### 6. Inspect Raw JSON Records (`raw`)
+### 7. Inspect Raw JSON Records (`raw`)
 
 Retrieve untruncated JSON step data from `transcript_full.jsonl`:
 
