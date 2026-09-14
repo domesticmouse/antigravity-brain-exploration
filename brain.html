@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Brain Directory Specification &amp; Architecture</title>
+    <meta name="description" content="In-depth specification of the Google Antigravity Brain directory structure, session trajectories, dual-mode JSONL transcripts, step execution outputs, and metadata heuristics.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Prism.js Syntax Highlighting Theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    
+    <!-- Shared Common Stylesheet -->
+    <link rel="stylesheet" href="common.css">
+</head>
+<body>
+    <div id="progress-bar"></div>
+
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand-group">
+                <div class="brand-logo">AG</div>
+                <div class="brand-text">
+                    <h1>Antigravity Brain Architecture</h1>
+                    <p>Internal Trajectory Storage, Transcripts &amp; Execution Specification</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="index.html" class="nav-btn-link" title="Open Python Code Walkthrough">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    Code Walkthrough
+                </a>
+                <span class="badge-pill">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-green);"></span>
+                    v1.0 &bull; Specification
+                </span>
+                <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle dark/light theme">
+                    <span id="theme-icon">☀️</span>
+                    <span id="theme-text">Light Mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Banner -->
+        <section class="hero-banner">
+            <div class="hero-card">
+                <h2 class="hero-title">The Antigravity Brain Directory Specification</h2>
+                <p class="hero-subtitle">
+                    Google Antigravity stores conversation histories, agentic chain-of-thought trajectories, tool calls, execution outputs, and persistent artifacts in structured "brain" directories under <code>~/.gemini/</code>. This guide documents the filesystem hierarchy, dual-mode JSONL transcripts, step execution lifecycle, metadata parsing rules, and cross-session discovery algorithms.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-val">~/.gemini</span>
+                        <span class="stat-lbl">ROOT STORAGE</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">JSONL</span>
+                        <span class="stat-lbl">TRANSCRIPT FORMAT</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">2</span>
+                        <span class="stat-lbl">TRANSCRIPT TIERS</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">UUIDv4</span>
+                        <span class="stat-lbl">SESSION KEYS</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">v1.0.0</span>
+                        <span class="stat-lbl">SPECIFICATION</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sticky Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-title">
+                    <span>SECTIONS</span>
+                    <span style="font-family: var(--font-mono); font-size: 0.72rem;">9 TOPICS</span>
+                </div>
+                <nav class="nav-list">
+                    <a href="#section-overview" class="nav-link active">1. Overview &amp; Multi-Brain Roots</a>
+                    <a href="#section-hierarchy" class="nav-link">2. Session Directory Hierarchy</a>
+                    <a href="#section-interactive-tree" class="nav-link">3. Interactive Explorer</a>
+                    <a href="#section-transcripts" class="nav-link">4. Dual-Mode JSONL Transcripts</a>
+                    <a href="#section-schema" class="nav-link">5. Trajectory Step Schema</a>
+                    <a href="#section-tool-calls" class="nav-link">6. Tool Calls &amp; Arguments</a>
+                    <a href="#section-step-outputs" class="nav-link">7. Execution Step Outputs</a>
+                    <a href="#section-artifacts" class="nav-link">8. Artifacts &amp; Scratchpad</a>
+                    <a href="#section-heuristics" class="nav-link">9. Metadata &amp; Discovery Rules</a>
+                </nav>
+            </aside>
+
+            <!-- Content Stream -->
+            <main class="content-stream">
+                
+                <!-- Section 1: Overview & Multi-Brain Roots -->
+                <section id="section-overview" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Storage Architecture</span>
+                        </div>
+                        <h2 class="section-title">1. Overview &amp; Multi-Brain Root Locations</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            In Google Antigravity, every conversation session between a human developer and the AI agent is recorded as a durable, stateful trajectory in a <strong>Brain Directory</strong>. Rather than storing records in an opaque SQLite database or a remote cloud cluster, Antigravity structures sessions as standard filesystem trees composed of human-readable JSON Lines (JSONL) files, plain-text command outputs, and Markdown artifacts.
+                        </p>
+                        <p>
+                            Depending on which Antigravity tool or interface initiated the agent, session directories are partitioned into specific brain storage roots located in the user's home directory under <code>~/.gemini/</code>:
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Brain Storage Root</th>
+                                    <th>Environment / Product</th>
+                                    <th>Typical Content &amp; Workflows</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>~/.gemini/antigravity/brain/</code></td>
+                                    <td><strong>Antigravity IDE &amp; Desktop App</strong></td>
+                                    <td>Full-featured desktop pair-programming sessions, multimodal interactions, generative UI views, and project refactors.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>~/.gemini/antigravity-cli/brain/</code></td>
+                                    <td><strong>Antigravity CLI (<code>agy</code>)</strong></td>
+                                    <td>Terminal-based coding sessions, autonomous background tasks, quick fixes, and slash command pipelines.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>~/.gemini/antigravity-acp/brain/</code></td>
+                                    <td><strong>Agent Client Protocol (ACP)</strong></td>
+                                    <td>Headless agent integrations, CI/CD automated test generation, and subagent orchestration runs.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert-box tip">
+                        <div class="alert-icon">💡</div>
+                        <div>
+                            <strong>Universal Discovery:</strong> The companion exploration tool <code>agy-brain-explorer.py</code> automatically scans all subdirectories under <code>~/.gemini/</code> matching the pattern <code>*/brain/</code>, dynamically aggregating and indexing sessions across all environments without manual configuration.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 2: Session Directory Hierarchy -->
+                <section id="section-hierarchy" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Filesystem Layout</span>
+                        </div>
+                        <h2 class="section-title">2. Session Directory Hierarchy</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Each Antigravity session directory is keyed by a canonical UUIDv4 (e.g., <code>74126ecc-9639-4ff3-9dcb-7ac2d9400986</code>). Inside this directory, files are partitioned into system-generated telemetry, agent scratchpads, user-uploaded data, and persistent user-facing artifacts:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">Session Filesystem Tree Structure</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                        </div>
+                        <pre><code class="language-text">&lt;brain_root&gt;/&lt;session_uuid&gt;/
+├── .system_generated/
+│   ├── logs/
+│   │   ├── transcript.jsonl            # Token-efficient compact JSONL transcript
+│   │   ├── transcript_full.jsonl       # Complete, untruncated JSONL transcript
+│   │   └── chunks/                     # (Optional) Incremental/rolling log chunks
+│   │       ├── transcript/
+│   │       │   └── 00000000.jsonl
+│   │       └── transcript_full/
+│   │           └── 00000000.jsonl
+│   └── steps/
+│       └── &lt;step_index&gt;/
+│           └── output.txt              # Captured stdout/stderr or step execution log
+├── scratch/                            # Persistent scratchpad for scripts &amp; temp files
+├── .user_uploaded/                     # Files uploaded into the session by the user
+└── &lt;artifact_name&gt;.md                  # Persistent markdown artifacts (e.g. implementation_plan.md)</code></pre>
+                    </div>
+
+                    <div class="prose-deep-dive">
+                        <h4>Directory Components &amp; Operational Roles:</h4>
+                        <ul>
+                            <li><strong><code>.system_generated/logs/</code></strong>: The core telemetry engine. Contains sequential execution logs stored in JSON Lines format, documenting every step from initial prompt to final response.</li>
+                            <li><strong><code>.system_generated/steps/&lt;step_index&gt;/output.txt</code></strong>: Stores raw command output, long tool returns, and build logs separated from the JSON transcript to prevent memory ballooning during LLM context feeding.</li>
+                            <li><strong><code>scratch/</code></strong>: A sandboxed, persistent workspace for temporary testing scripts (e.g. <code>test_parse.py</code>), benchmark outputs, or intermediate data files created by the agent.</li>
+                            <li><strong><code>.user_uploaded/</code></strong>: Preserves files, screenshots, logs, or sample datasets that the developer uploaded through the Antigravity user interface.</li>
+                            <li><strong><code>*.md</code> (Root Artifacts)</strong>: User-facing markdown documents such as <code>implementation_plan.md</code> and <code>walkthrough.md</code>, created via the <code>write_to_file</code> tool with formal artifact metadata.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Section 3: Interactive Tree Visualizer -->
+                <section id="section-interactive-tree" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Interactive Tool</span>
+                        </div>
+                        <h2 class="section-title">3. Interactive Directory Tree Explorer</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Click any node in the directory structure below to inspect its role, format specifications, lifecycle, and sample content:
+                        </p>
+                    </div>
+
+                    <div class="interactive-tree-grid">
+                        <div class="tree-view" id="tree-nodes">
+                            <div class="tree-node selected" data-node="root">
+                                <span class="tree-icon">📁</span>
+                                <span>&lt;session_uuid&gt;/</span>
+                            </div>
+                            <div class="tree-node depth-1" data-node="sysgen">
+                                <span class="tree-icon">📁</span>
+                                <span>.system_generated/</span>
+                            </div>
+                            <div class="tree-node depth-2" data-node="logs">
+                                <span class="tree-icon">📁</span>
+                                <span>logs/</span>
+                            </div>
+                            <div class="tree-node depth-3" data-node="transcript">
+                                <span class="tree-icon">📄</span>
+                                <span>transcript.jsonl</span>
+                            </div>
+                            <div class="tree-node depth-3" data-node="transcript-full">
+                                <span class="tree-icon">📄</span>
+                                <span>transcript_full.jsonl</span>
+                            </div>
+                            <div class="tree-node depth-3" data-node="chunks">
+                                <span class="tree-icon">📁</span>
+                                <span>chunks/</span>
+                            </div>
+                            <div class="tree-node depth-2" data-node="steps">
+                                <span class="tree-icon">📁</span>
+                                <span>steps/</span>
+                            </div>
+                            <div class="tree-node depth-3" data-node="step-output">
+                                <span class="tree-icon">📄</span>
+                                <span>&lt;idx&gt;/output.txt</span>
+                            </div>
+                            <div class="tree-node depth-1" data-node="scratch">
+                                <span class="tree-icon">📁</span>
+                                <span>scratch/</span>
+                            </div>
+                            <div class="tree-node depth-1" data-node="user-uploaded">
+                                <span class="tree-icon">📁</span>
+                                <span>.user_uploaded/</span>
+                            </div>
+                            <div class="tree-node depth-1" data-node="artifacts">
+                                <span class="tree-icon">📄</span>
+                                <span>*.md (Artifacts)</span>
+                            </div>
+                        </div>
+
+                        <div class="tree-desc-panel" id="tree-panel">
+                            <div class="tree-desc-title" id="node-title">📁 &lt;session_uuid&gt;/</div>
+                            <div class="tree-desc-meta" id="node-meta">
+                                <span>TYPE: Directory</span> &bull; 
+                                <span>REQUIRED: Yes</span> &bull; 
+                                <span>NAMING: UUIDv4</span>
+                            </div>
+                            <div class="tree-desc-body" id="node-body">
+                                The top-level session root container. Represents an independent agentic run or pair-programming conversation. All conversation logs, artifacts, uploaded files, and scratch scripts are contained strictly within this directory.
+                            </div>
+                            <div class="code-container" style="margin-top:10px;">
+                                <div class="code-header">
+                                    <span class="file-tag" id="node-code-tag">Path Pattern</span>
+                                </div>
+                                <pre><code class="language-text" id="node-code">~/.gemini/antigravity/brain/74126ecc-9639-4ff3-9dcb-7ac2d9400986/</code></pre>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 4: Dual-Mode JSONL Transcripts -->
+                <section id="section-transcripts" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Telemetry Engine</span>
+                        </div>
+                        <h2 class="section-title">4. Dual-Mode JSONL Transcripts</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Antigravity implements a high-performance, dual-tiered transcript logging architecture. Every interaction turn writes to two distinct JSON Lines files simultaneously:
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>File Name</th>
+                                    <th>Truncation Policy</th>
+                                    <th>Primary Consumer</th>
+                                    <th>Key Operational Purpose</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>transcript.jsonl</code></td>
+                                    <td><strong>Truncated</strong> when large</td>
+                                    <td>Agent Context &amp; Rapid Scanners</td>
+                                    <td>Token-efficient. Output texts or tool inputs exceeding thresholds are trimmed to keep agent context compact while preserving 1-to-1 line mapping.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>transcript_full.jsonl</code></td>
+                                    <td><strong>Untruncated</strong> (Full fidelity)</td>
+                                    <td>Auditing &amp; Forensic Review</td>
+                                    <td>Complete execution record. Contains unabridged model reasoning, long code payloads, and complete tool arguments without truncation.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert-box info">
+                        <div class="alert-icon">ℹ️</div>
+                        <div>
+                            <strong>Strict 1-to-1 Step Invariant:</strong> Line <code>N</code> in <code>transcript.jsonl</code> corresponds exactly to line <code>N</code> in <code>transcript_full.jsonl</code>. When an agent detects a <code>"truncated_fields": ["content"]</code> array in the compact transcript, it can surgically fetch only line <code>N</code> from <code>transcript_full.jsonl</code> without parsing the entire file into memory.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 5: Trajectory Step Schema -->
+                <section id="section-schema" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Data Contracts</span>
+                        </div>
+                        <h2 class="section-title">5. Trajectory Step Schema</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Each line within a transcript file is a self-contained JSON object representing a discrete execution step (turn). The schema is strictly typed with the following structure:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">Step Record JSON Schema (TypeScript Definition)</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                        </div>
+                        <pre><code class="language-typescript">interface TrajectoryStep {
+  /** 0-indexed chronological execution step number */
+  step_index: number;
+  
+  /** Actor that produced the step */
+  source: "USER_EXPLICIT" | "MODEL" | "SYSTEM";
+  
+  /** Semantic type of the interaction step */
+  type: "USER_INPUT" | "PLANNER_RESPONSE" | "GENERIC";
+  
+  /** Execution status */
+  status: "DONE" | "ERROR" | "CANCELLED";
+  
+  /** ISO 8601 creation timestamp in UTC (e.g. 2026-09-14T10:41:53Z) */
+  created_at: string;
+  
+  /** Body content (prompts, tool returns, system notices, or chat prose) */
+  content?: string | null;
+  
+  /** Internal chain-of-thought reasoning from the model */
+  thinking?: string | null;
+  
+  /** Tool invocations initiated by the model */
+  tool_calls?: Array&lt;{
+    name: string;
+    args: Record&lt;string, any&gt;;
+  }&gt;;
+  
+  /** Present only in transcript.jsonl when truncation occurred */
+  truncated_fields?: Array&lt;"content" | "thinking" | "tool_calls"&gt;;
+}</code></pre>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Type</th>
+                                    <th>Req</th>
+                                    <th>Detailed Semantic Role</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>step_index</code></td>
+                                    <td><code>integer</code></td>
+                                    <td>Yes</td>
+                                    <td>Sequential index starting at 0. Maps directly to step output folders (<code>.system_generated/steps/&lt;step_index&gt;/</code>).</td>
+                                </tr>
+                                <tr>
+                                    <td><code>source</code></td>
+                                    <td><code>enum</code></td>
+                                    <td>Yes</td>
+                                    <td>
+                                        <code>USER_EXPLICIT</code> (human inputs), <code>MODEL</code> (LLM responses &amp; actions), or <code>SYSTEM</code> (environmental notifications).
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><code>type</code></td>
+                                    <td><code>enum</code></td>
+                                    <td>Yes</td>
+                                    <td>
+                                        <code>USER_INPUT</code> (user prompt), <code>PLANNER_RESPONSE</code> (model reasoning &amp; tool dispatch), or <code>GENERIC</code> (tool execution feedback).
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><code>status</code></td>
+                                    <td><code>enum</code></td>
+                                    <td>Yes</td>
+                                    <td>Lifecycle state. Almost universally <code>"DONE"</code> upon successful step completion.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>created_at</code></td>
+                                    <td><code>string</code></td>
+                                    <td>Yes</td>
+                                    <td>ISO 8601 timestamp with timezone offset or UTC <code>Z</code> suffix. Used for chronological sorting and duration calculation.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>thinking</code></td>
+                                    <td><code>string</code></td>
+                                    <td>No</td>
+                                    <td>Internal cognitive scratchpad where the model analyzes requirements and plans tool calls prior to execution.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>tool_calls</code></td>
+                                    <td><code>array</code></td>
+                                    <td>No</td>
+                                    <td>Contains the tool function name and input argument dictionary.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 6: Tool Calls & Arguments -->
+                <section id="section-tool-calls" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Agent Tooling</span>
+                        </div>
+                        <h2 class="section-title">6. Tool Calls &amp; Argument Structures</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            When a model produces a <code>PLANNER_RESPONSE</code>, it may dispatch one or more tool calls. Every tool call provides standard metadata arguments (<code>toolAction</code> and <code>toolSummary</code>) that allow user interfaces and CLI tools to render human-readable progress indicators.
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Tool Name</th>
+                                    <th>Core Parameters</th>
+                                    <th>UX Metadata</th>
+                                    <th>Description &amp; Behavioral Guardrails</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>run_command</code></td>
+                                    <td><code>CommandLine</code>, <code>Cwd</code>, <code>WaitMsBeforeAsync</code>, <code>BypassSandbox</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Executes shell commands in a sandbox or unsandboxed mode. Output is piped to <code>output.txt</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>view_file</code></td>
+                                    <td><code>AbsolutePath</code>, <code>StartLine</code>, <code>EndLine</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Reads file contents slice-by-slice (up to 800 lines per call).</td>
+                                </tr>
+                                <tr>
+                                    <td><code>write_to_file</code></td>
+                                    <td><code>TargetFile</code>, <code>CodeContent</code>, <code>Overwrite</code>, <code>ArtifactMetadata</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Creates new code files or persistent artifacts. Requires metadata when creating artifacts.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>replace_file_content</code></td>
+                                    <td><code>TargetFile</code>, <code>StartLine</code>, <code>EndLine</code>, <code>TargetContent</code>, <code>ReplacementContent</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Surgically replaces a contiguous block of text in an existing file.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>list_dir</code></td>
+                                    <td><code>DirectoryPath</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Lists directory contents with file sizes and directory child counts.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>find_by_name</code></td>
+                                    <td><code>SearchDirectory</code>, <code>Pattern</code>, <code>Extensions</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>High-speed file name discovery powered by <code>fd</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>grep_search</code></td>
+                                    <td><code>SearchPath</code>, <code>Query</code>, <code>IsRegex</code>, <code>MatchPerLine</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Regex and literal content searching powered by <code>ripgrep</code>.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>call_mcp_tool</code></td>
+                                    <td><code>ServerName</code>, <code>ToolName</code>, <code>Arguments</code></td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Dispatches calls to Model Context Protocol (MCP) servers (e.g. Flutter, Firebase, Chrome).</td>
+                                </tr>
+                                <tr>
+                                    <td><code>invoke_subagent</code></td>
+                                    <td><code>Subagents</code> (array of { <code>TypeName</code>, <code>Role</code>, <code>Prompt</code> })</td>
+                                    <td><code>toolAction</code>, <code>toolSummary</code></td>
+                                    <td>Spawns concurrent autonomous subagents with separate conversation trees.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 7: Execution Step Outputs -->
+                <section id="section-step-outputs" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Execution Logs</span>
+                        </div>
+                        <h2 class="section-title">7. Execution Step Outputs (<code>.system_generated/steps/</code>)</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Tools that generate extensive terminal output, compiler diagnostics, or large payloads (such as <code>run_command</code> or unit test runners) do not bloat the JSON transcript. Instead, Antigravity writes the raw output stream to an external file:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">Step Output Location Pattern</span>
+                        </div>
+                        <pre><code class="language-text">&lt;session_dir&gt;/.system_generated/steps/&lt;step_index&gt;/output.txt</code></pre>
+                    </div>
+
+                    <div class="prose-deep-dive">
+                        <h4>Key Architectural Characteristics:</h4>
+                        <ul>
+                            <li><strong>Correlation</strong>: The directory name <code>&lt;step_index&gt;</code> corresponds exactly to the <code>step_index</code> field of the triggering action step.</li>
+                            <li><strong>Format</strong>: Raw, unescaped UTF-8 plain text containing stdout, stderr, and terminal exit codes.</li>
+                            <li><strong>Deduplication Invariant</strong>: In `agy-brain-explorer.py`, the viewer checks if the text in `output.txt` is already present inside `step.content`. If identical, it avoids duplicate printing to keep audit timelines clean.</li>
+                        </ul>
+                    </div>
+                </section>
+
+                <!-- Section 8: Artifacts & Scratchpad -->
+                <section id="section-artifacts" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Persistence</span>
+                        </div>
+                        <h2 class="section-title">8. Artifacts &amp; Scratchpad</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            In addition to transcripts, an Antigravity brain directory maintains persistent workspace files that live across individual conversational turns:
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Resource</th>
+                                    <th>Path</th>
+                                    <th>Purpose &amp; Lifecycle</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Implementation Plan</strong></td>
+                                    <td><code>&lt;session_dir&gt;/implementation_plan.md</code></td>
+                                    <td>Architectural design document created prior to code modification. Requires user approval before execution.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Walkthrough</strong></td>
+                                    <td><code>&lt;session_dir&gt;/walkthrough.md</code></td>
+                                    <td>Post-execution verification report summarizing code changes, test results, and visual artifacts.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Scratch Directory</strong></td>
+                                    <td><code>&lt;session_dir&gt;/scratch/</code></td>
+                                    <td>Persistent scratchpad where the agent creates one-off scripts (e.g. data verification, custom parsers) without polluting the user's git workspace.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>User Uploads</strong></td>
+                                    <td><code>&lt;session_dir&gt;/.user_uploaded/</code></td>
+                                    <td>Contains files, screenshots, or datasets dragged and dropped into the Antigravity chat input box.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 9: Metadata & Discovery Rules -->
+                <section id="section-heuristics" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Algorithms &amp; Heuristics</span>
+                        </div>
+                        <h2 class="section-title">9. Metadata Extraction &amp; Discovery Heuristics</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Because Antigravity injects contextual metadata into <code>USER_INPUT</code> turns, exploration tools apply regular expression heuristics to extract environment information:
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Metadata Field</th>
+                                    <th>Parsing Pattern / Heuristic</th>
+                                    <th>Example Match</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>User Request</strong></td>
+                                    <td><code>r"&lt;USER_REQUEST&gt;\s*(.*?)\s*&lt;/USER_REQUEST&gt;"</code></td>
+                                    <td><code>Please convert the python script into a HTML file</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Active Model</strong></td>
+                                    <td><code>r"setting `Model Selection` from .*? to ([^\n\r]+?)\.\s*No need"</code></td>
+                                    <td><code>Gemini 3.8 Flash (Medium)</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Local Timestamp</strong></td>
+                                    <td><code>r"The current local time is:\s*([^\n\r.]+)"</code></td>
+                                    <td><code>2026-09-14T20:26:49+10:00</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Mentioned Files</strong></td>
+                                    <td><code>r"@\[([^\]]+)\]"</code></td>
+                                    <td><code>@[ptsav.dat]</code>, <code>@[SKILL.md]</code></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Workspace Root</strong></td>
+                                    <td>Tool args <code>args.get("Cwd")</code> or <code>&lt;user_information&gt;</code> mapping</td>
+                                    <td><code>/Users/brett/Documents/GitHub/antigravity-brain-exploration</code></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="prose-deep-dive">
+                        <h4>Chronological Sorting &amp; Resolution Order:</h4>
+                        <ul>
+                            <li><strong>Chronological Sorting</strong>: Sessions MUST NOT be sorted alphabetically by UUID. <code>agy-brain-explorer.py</code> parses <code>created_at</code> from step 0 (falling back to directory <code>st_ctime</code>) and sorts newest-first so the user always sees their most recent conversations.</li>
+                            <li><strong>Prefix Resolution</strong>: If a user specifies a short 8-character prefix (e.g. <code>bb50bdc8</code>), the discovery engine scans all brain roots and resolves the complete UUID automatically.</li>
+                            <li><strong>Multi-Brain Tiebreaking</strong>: If an identical session ID exists in multiple roots, the discovery algorithm selects the one with the latest modification timestamp (<code>st_mtime</code>).</li>
+                        </ul>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+
+        <footer class="app-footer">
+            <p>
+                Antigravity Brain Directory Specification &bull; Companion to <a href="index.html">Antigravity Brain Explorer (<code>agy-brain-explorer.py</code>)</a>
+            </p>
+            <div class="footer-links">
+                <a href="index.html">Code Walkthrough</a>
+                <a href="brain.html">Brain Specification</a>
+                <a href="README.md">README</a>
+            </div>
+        </footer>
+    </main>
+
+    <!-- Floating Back to Top Button -->
+    <button id="back-to-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})" aria-label="Back to top" title="Back to top">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5">
+            <polyline points="18 15 12 9 6 15"></polyline>
+        </svg>
+    </button>
+
+    <!-- Scripts: Prism.js and Interactive Logic -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-typescript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+    <script>
+        // Reading Progress Bar & Back-to-Top
+        window.addEventListener('scroll', () => {
+            const winScroll = document.documentElement.scrollTop;
+            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = (winScroll / height) * 100;
+            document.getElementById('progress-bar').style.width = scrolled + '%';
+
+            const btt = document.getElementById('back-to-top');
+            if (btt) {
+                if (winScroll > 400) {
+                    btt.classList.add('visible');
+                } else {
+                    btt.classList.remove('visible');
+                }
+            }
+        });
+
+        // Theme Toggle
+        function toggleTheme() {
+            const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            setTheme(newTheme);
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('agy-theme', theme);
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            if (icon && text) {
+                if (theme === 'light') {
+                    icon.textContent = '🌙';
+                    text.textContent = 'Dark Mode';
+                } else {
+                    icon.textContent = '☀️';
+                    text.textContent = 'Light Mode';
+                }
+            }
+        }
+
+        const savedTheme = localStorage.getItem('agy-theme') || 'dark';
+        setTheme(savedTheme);
+
+        // Scroll-spy for Sidebar
+        const sections = document.querySelectorAll('.spec-section');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        window.addEventListener('scroll', () => {
+            let current = '';
+            sections.forEach(sec => {
+                const secTop = sec.offsetTop - 120;
+                if (pageYOffset >= secTop) {
+                    current = sec.getAttribute('id');
+                }
+            });
+
+            navLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === '#' + current) {
+                    link.classList.add('active');
+                }
+            });
+        });
+
+        // Interactive File Tree Data
+        const treeData = {
+            'root': {
+                title: '📁 <session_uuid>/',
+                meta: 'TYPE: Directory • REQUIRED: Yes • NAMING: UUIDv4',
+                body: 'The top-level session container under ~/.gemini/*/brain/. Represents a complete conversation or autonomous agent task. Encapsulates transcripts, outputs, scratch scripts, and user artifacts.',
+                tag: 'Filesystem Path Pattern',
+                code: '~/.gemini/antigravity/brain/74126ecc-9639-4ff3-9dcb-7ac2d9400986/'
+            },
+            'sysgen': {
+                title: '📁 .system_generated/',
+                meta: 'TYPE: Directory • REQUIRED: Yes • VISIBILITY: Internal',
+                body: 'System-managed internal directory containing automated telemetry, chronological turn transcripts, and step execution logs. Agents and tools read from this tree to reconstruct conversation trajectory.',
+                tag: 'Internal Path',
+                code: '<session_dir>/.system_generated/'
+            },
+            'logs': {
+                title: '📁 logs/',
+                meta: 'TYPE: Directory • REQUIRED: Yes • FORMAT: JSON Lines',
+                body: 'Stores the dual-mode JSON Lines conversation transcripts (transcript.jsonl and transcript_full.jsonl) alongside rolling chunk files.',
+                tag: 'Logs Directory',
+                code: '<session_dir>/.system_generated/logs/'
+            },
+            'transcript': {
+                title: '📄 transcript.jsonl',
+                meta: 'TYPE: JSONL File • REQUIRED: Yes* • TRUNCATED: Yes (for large payloads)',
+                body: 'The compact, token-efficient transcript. Each line is an independent JSON object representing a step. Large fields (e.g. 500-line tool outputs) are truncated to conserve LLM context window tokens, noting truncated fields in "truncated_fields": ["content"].',
+                tag: 'Sample Line in transcript.jsonl',
+                code: '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-14T10:41:53Z","thinking":"Checking repo...","tool_calls":[{"name":"list_dir","args":{"DirectoryPath":"/repo"}}],"truncated_fields":["thinking"]}'
+            },
+            'transcript-full': {
+                title: '📄 transcript_full.jsonl',
+                meta: 'TYPE: JSONL File • REQUIRED: Yes* • TRUNCATED: Never',
+                body: 'The comprehensive, untruncated transcript. Maintains exact 1-to-1 line correspondence with transcript.jsonl but preserves every byte of model thinking, long tool responses, and source code modifications without truncation.',
+                tag: 'Full JSONL Record',
+                code: '{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"2026-09-14T10:41:53Z","thinking":"Checking repo... [unabridged 8KB text]","tool_calls":[{"name":"list_dir","args":{"DirectoryPath":"/repo"}}]}'
+            },
+            'chunks': {
+                title: '📁 chunks/',
+                meta: 'TYPE: Directory • REQUIRED: Optional • USAGE: Rolling logs',
+                body: 'Contains segmented transcript chunks (e.g. 00000000.jsonl) for sessions with hundreds of steps. Enables incremental tail streaming without reading giant monolithic files.',
+                tag: 'Chunk Location',
+                code: '<session_dir>/.system_generated/logs/chunks/transcript/00000000.jsonl'
+            },
+            'steps': {
+                title: '📁 steps/',
+                meta: 'TYPE: Directory • REQUIRED: Optional • MAPPING: By step_index',
+                body: 'Contains subdirectories named by numerical step index (<step_index>) storing external execution stdout/stderr streams.',
+                tag: 'Steps Directory',
+                code: '<session_dir>/.system_generated/steps/'
+            },
+            'step-output': {
+                title: '📄 <step_index>/output.txt',
+                meta: 'TYPE: Plain Text (UTF-8) • REQUIRED: Optional • TRIGGER: Heavy tools',
+                body: 'Raw captured stdout, stderr, and exit status for step <step_index> (e.g. from run_command or compiler runs). Stored externally to keep transcripts lean.',
+                tag: 'Sample output.txt',
+                code: 'On branch main\nYour branch is up to date with \'origin/main\'.\nnothing to commit, working tree clean'
+            },
+            'scratch': {
+                title: '📁 scratch/',
+                meta: 'TYPE: Workspace Directory • REQUIRED: Optional • LIFECYCLE: Persistent',
+                body: 'Agent temporary workspace. When an agent needs to write one-off python inspection scripts, test regular expressions, or dump debug JSON, it places them in scratch/ to avoid modifying the user project.',
+                tag: 'Scratch Directory',
+                code: '<session_dir>/scratch/test_parse.py'
+            },
+            'user-uploaded': {
+                title: '📁 .user_uploaded/',
+                meta: 'TYPE: Directory • REQUIRED: Optional • SOURCE: Chat UI',
+                body: 'Contains screenshots, images, logs, or documents dragged directly into the Antigravity chat prompt by the user.',
+                tag: 'Uploads Location',
+                code: '<session_dir>/.user_uploaded/screenshot_error.png'
+            },
+            'artifacts': {
+                title: '📄 *.md (Artifacts)',
+                meta: 'TYPE: Markdown Documents • REQUIRED: Optional • VISIBILITY: User-Facing',
+                body: 'Structured documents presented to the user, including implementation_plan.md (with interactive approval buttons) and walkthrough.md (change verification and test summaries).',
+                tag: 'Artifact Header',
+                code: '# Implementation Plan\n\n## Proposed Changes\n- [NEW] brain.html\n- [MODIFY] index.html'
+            }
+        };
+
+        const treeNodeEls = document.querySelectorAll('.tree-node');
+        const nodeTitleEl = document.getElementById('node-title');
+        const nodeMetaEl = document.getElementById('node-meta');
+        const nodeBodyEl = document.getElementById('node-body');
+        const nodeCodeTagEl = document.getElementById('node-code-tag');
+        const nodeCodeEl = document.getElementById('node-code');
+
+        treeNodeEls.forEach(node => {
+            node.addEventListener('click', () => {
+                treeNodeEls.forEach(n => n.classList.remove('selected'));
+                node.classList.add('selected');
+                const key = node.getAttribute('data-node');
+                const data = treeData[key];
+                if (data) {
+                    nodeTitleEl.textContent = data.title;
+                    nodeMetaEl.innerHTML = data.meta.split('•').map(m => `<span>${m.trim()}</span>`).join(' &bull; ');
+                    nodeBodyEl.textContent = data.body;
+                    nodeCodeTagEl.textContent = data.tag;
+                    nodeCodeEl.textContent = data.code;
+                }
+            });
+        });
+
+        // Copy button helper
+        function copySnippet(btn) {
+            const container = btn.closest('.code-container');
+            const codeEl = container.querySelector('code');
+            if (codeEl) {
+                navigator.clipboard.writeText(codeEl.innerText).then(() => {
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.borderColor = 'var(--accent-green)';
+                    btn.style.color = 'var(--accent-green)';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    }, 2000);
+                });
+            }
+        }
+    </script>
+</body>
+</html>
