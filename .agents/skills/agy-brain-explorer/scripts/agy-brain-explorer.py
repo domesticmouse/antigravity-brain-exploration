@@ -588,7 +588,7 @@ def run_explorer(
         else:
             req_display = t.user_request[:100]
         req_sanitized = sanitize_md_cell(req_display)
-        session_link = f"[`{t.session_id[:8]}`](conversation://{t.session_id})"
+        session_link = f"`{t.session_id[:8]}` [↗](conversation://{t.session_id})"
         print(
             f"| {idx} | {created_display} | {t.source_brain} | {session_link} | {t.step_count} | {req_sanitized} |"
         )
@@ -747,7 +747,7 @@ def cmd_explorer_search(
             created_display = format_datetime_display(t.created_dt, t.created_at)
             req_text = t.full_user_request or t.user_request
             snippet = extract_snippet(req_text, query, max_length=120)
-            session_link = f"[`{t.session_id[:8]}`](conversation://{t.session_id})"
+            session_link = f"`{t.session_id[:8]}` [↗](conversation://{t.session_id})"
             print(
                 f"| {idx} | {created_display} | {t.source_brain} | {session_link} | {t.step_count} | {sanitize_md_cell(snippet)} |"
             )
@@ -821,7 +821,7 @@ def cmd_explorer_search(
         print("| # | Session ID | Brain | Step | Type | Matched Excerpt |")
         print("| :--- | :--- | :--- | :---: | :--- | :--- |")
         for idx, m in enumerate(to_show, 1):
-            session_link = f"[`{m['session_id'][:8]}`](conversation://{m['session_id']})"
+            session_link = f"`{m['session_id'][:8]}` [↗](conversation://{m['session_id']})"
             clean_desc = sanitize_md_cell(m["desc"])
             print(
                 f"| {idx} | {session_link} | {m['source_brain']} | {m['step_index']} | {m['type']} | {clean_desc} |"
@@ -884,7 +884,7 @@ def show_summary(data: SessionData) -> None:
     print("| Property | Value |")
     print("| :--- | :--- |")
     print(
-        f"| **Session ID** | [`{data.session_id}`](conversation://{data.session_id}) |"
+        f"| **Session ID** | `{data.session_id}` [↗](conversation://{data.session_id}) |"
     )
     print(f"| **Directory** | `{data.session_dir}` |")
     print(f"| **Started At** | {start_time if start_time else 'unknown'} |")

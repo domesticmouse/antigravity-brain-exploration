@@ -35,7 +35,7 @@ uv run scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
 ### 3. Native Markdown Rendering
 > [!TIP]
 > **All results render directly as GitHub Flavored Markdown.**
-> Session IDs are formatted with Antigravity UI links (`[<short_id>](conversation://<full_session_uuid>)`) so the user can click directly into past conversations from chat.
+> Session IDs are formatted with copyable code plus Antigravity UI navigation links (`` `<short_id>` [↗](conversation://<full_session_uuid>) ``) so the user can easily copy the session ID to ask follow-up questions or click directly into past conversations from chat.
 
 ---
 
