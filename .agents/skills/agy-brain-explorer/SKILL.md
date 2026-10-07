@@ -1,10 +1,10 @@
 ---
 name: agy-brain-explorer
 description: >-
-  Discover, list, inspect, and audit Google Antigravity session trajectories,
-  transcripts, tool invocations, and execution steps across all brain storage
+  Discover, list, inspect, compare, and audit Google Antigravity session trajectories,
+  transcripts, disk paths, tool invocations, and execution steps across all brain storage
   directories under ~/.gemini. Use whenever asked to list recent/past sessions,
-  review session histories, inspect tool executions, or debug trajectory steps.
+  review session histories, compare sessions, inspect disk locations, or debug trajectory steps.
 ---
 
 # Antigravity Brain Explorer Skill
@@ -128,4 +128,28 @@ Retrieve untruncated JSON step data from `transcript_full.jsonl`:
 
 ```bash
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> raw 1 --full
+```
+
+### 8. Compare Two Sessions Side-by-Side (`compare`)
+
+Compare two sessions side-by-side to review timing, duration, step counts, user turns, tool invocations, files written, and outcomes:
+
+```bash
+# Compare two sessions by IDs or prefixes
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py compare <SESSION_1> <SESSION_2>
+
+# Or via session inspection syntax
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION_1> compare <SESSION_2>
+```
+
+### 9. Inspect On-Disk Paths and Transcripts (`paths`)
+
+Display exact disk locations and clickable file links (`file://`) for session directories, transcripts (`transcript.jsonl`, `transcript_full.jsonl`), logs, step outputs, and scratch files:
+
+```bash
+# Show disk paths for a single session
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> paths
+
+# Show disk paths for multiple sessions simultaneously
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py paths <SESSION_1> <SESSION_2>
 ```

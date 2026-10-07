@@ -107,6 +107,63 @@ class SessionData:
                 return content.strip()
         return "(none)"
 
+    def get_user_requests(self) -> list[str]:
+        reqs: list[str] = []
+        for s in self.steps:
+            if s.get("type") == "USER_INPUT":
+                content = s.get("content", "")
+                m = re.search(
+                    r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", content, re.DOTALL
+                )
+                if m:
+                    reqs.append(m.group(1).strip())
+                elif content.strip():
+                    reqs.append(content.strip())
+        return reqs
+
+    def get_last_model_response(self) -> str:
+        for s in reversed(self.steps):
+            if s.get("type") == "PLANNER_RESPONSE":
+                content = s.get("content", "")
+                if content and content.strip():
+                    return content.strip()
+        return "(none)"
+
+    def get_tool_counts(self) -> dict[str, int]:
+        tool_counts: dict[str, int] = {}
+        for s in self.full_steps:
+            for tc in s.get("tool_calls", []):
+                name = tc.get("name", "unknown")
+                tool_counts[name] = tool_counts.get(name, 0) + 1
+        return tool_counts
+
+    def get_start_and_end_times(self) -> tuple[datetime | None, datetime | None, str]:
+        start_time: datetime | None = None
+        end_time: datetime | None = None
+        if self.steps:
+            with contextlib.suppress(ValueError, TypeError):
+                start_time = datetime.fromisoformat(
+                    self.steps[0].get("created_at", "").replace("Z", "+00:00")
+                )
+                end_time = datetime.fromisoformat(
+                    self.steps[-1].get("created_at", "").replace("Z", "+00:00")
+                )
+        duration_str = (
+            str(end_time - start_time) if (start_time and end_time) else "unknown"
+        )
+        return start_time, end_time, duration_str
+
+    def get_modified_files(self) -> list[str]:
+        files: list[str] = []
+        for s in self.full_steps:
+            for tc in s.get("tool_calls", []):
+                if tc.get("name") in ("write_to_file", "replace_file_content"):
+                    args = tc.get("args", {})
+                    tgt = args.get("TargetFile")
+                    if tgt and tgt not in files:
+                        files.append(tgt)
+        return files
+
     def get_metadata_info(self) -> dict[str, str]:
         meta: dict[str, str] = {}
         for s in self.steps:
@@ -730,7 +787,7 @@ def cmd_explorer_search(
 
     if not all_steps:
         traces = discover_traces(brain_filter=brain, query=query)
-        header = f"### Session Search Results for \"{query}\" in Initial User Requests ({len(traces)} sessions found"
+        header = f'### Session Search Results for "{query}" in Initial User Requests ({len(traces)} sessions found'
         if brain:
             header += f", brain: `{brain}`"
         header += ")\n"
@@ -807,7 +864,7 @@ def cmd_explorer_search(
                                 }
                             )
 
-        header = f"### Deep Search Results for \"{query}\" across All Steps ({len(step_matches)} steps matched"
+        header = f'### Deep Search Results for "{query}" across All Steps ({len(step_matches)} steps matched'
         if brain:
             header += f", brain: `{brain}`"
         header += ")\n"
@@ -821,7 +878,9 @@ def cmd_explorer_search(
         print("| # | Session ID | Brain | Step | Type | Matched Excerpt |")
         print("| :--- | :--- | :--- | :---: | :--- | :--- |")
         for idx, m in enumerate(to_show, 1):
-            session_link = f"`{m['session_id'][:8]}` [↗](conversation://{m['session_id']})"
+            session_link = (
+                f"`{m['session_id'][:8]}` [↗](conversation://{m['session_id']})"
+            )
             clean_desc = sanitize_md_cell(m["desc"])
             print(
                 f"| {idx} | {session_link} | {m['source_brain']} | {m['step_index']} | {m['type']} | {clean_desc} |"
@@ -832,6 +891,64 @@ def cmd_explorer_search(
                 f"\n*Showing {len(to_show)} of {len(step_matches)} matches. Use `--all` or `--limit` to show more.*"
             )
 
+
+@explorer_app.command(name="compare")
+def cmd_explorer_compare(
+    session1: Annotated[
+        str,
+        typer.Argument(help="First session ID or directory path."),
+    ],
+    session2: Annotated[
+        str,
+        typer.Argument(help="Second session ID or directory path."),
+    ],
+    as_markdown: Annotated[
+        bool,
+        typer.Option(
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
+        ),
+    ] = True,
+) -> None:
+    """Compare two sessions side-by-side (timing, steps, tools, prompts, outcomes)."""
+    dir1 = find_session_directory(session1)
+    dir2 = find_session_directory(session2)
+    s1 = SessionData.load(dir1)
+    s2 = SessionData.load(dir2)
+    show_comparison(s1, s2)
+
+
+@explorer_app.command(name="paths")
+def cmd_explorer_paths(
+    sessions: Annotated[
+        list[str],
+        typer.Argument(
+            metavar="SESSIONS...",
+            help="One or more session IDs or directory paths.",
+        ),
+    ],
+    as_markdown: Annotated[
+        bool,
+        typer.Option(
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
+        ),
+    ] = True,
+) -> None:
+    """Show on-disk directory paths and transcript file locations for one or more sessions."""
+    sessions_data = []
+    for s_arg in sessions:
+        s_dir = find_session_directory(s_arg)
+        sessions_data.append(SessionData.load(s_dir))
+
+    if len(sessions_data) > 1:
+        show_paths_multi(sessions_data)
+    elif sessions_data:
+        show_paths(sessions_data[0])
 
 
 # ---------------------------------------------------------------------------
@@ -848,19 +965,7 @@ session_app = typer.Typer(
 
 def show_summary(data: SessionData) -> None:
     """Render session summary as Markdown."""
-    start_time: datetime | None = None
-    end_time: datetime | None = None
-    if data.steps:
-        try:
-            start_time = datetime.fromisoformat(data.steps[0].get("created_at", ""))
-            end_time = datetime.fromisoformat(data.steps[-1].get("created_at", ""))
-        except (ValueError, TypeError):
-            pass
-
-    duration_str = (
-        str(end_time - start_time) if (start_time and end_time) else "unknown"
-    )
-
+    start_time, end_time, duration_str = data.get_start_and_end_times()
     meta = data.get_metadata_info()
     scratch_items = (
         list((data.session_dir / "scratch").glob("*"))
@@ -873,12 +978,7 @@ def show_summary(data: SessionData) -> None:
         else []
     )
     user_req = data.get_user_request_clean()
-
-    tool_counts: dict[str, int] = {}
-    for s in data.full_steps:
-        for tc in s.get("tool_calls", []):
-            name = tc.get("name", "unknown")
-            tool_counts[name] = tool_counts.get(name, 0) + 1
+    tool_counts = data.get_tool_counts()
 
     print(f"### Session Overview: `{data.session_id}`\n")
     print("| Property | Value |")
@@ -886,13 +986,33 @@ def show_summary(data: SessionData) -> None:
     print(
         f"| **Session ID** | `{data.session_id}` [↗](conversation://{data.session_id}) |"
     )
-    print(f"| **Directory** | `{data.session_dir}` |")
-    print(f"| **Started At** | {start_time if start_time else 'unknown'} |")
-    print(f"| **Ended At** | {end_time if end_time else 'unknown'} |")
+    print(f"| **Directory** | [`{data.session_dir}`](file://{data.session_dir}) |")
+    if data.transcript_path.exists():
+        print(
+            f"| **Transcript** | [`{data.transcript_path.name}`](file://{data.transcript_path}) |"
+        )
+    if (
+        data.transcript_full_path.exists()
+        and data.transcript_full_path != data.transcript_path
+    ):
+        print(
+            f"| **Full Transcript** | [`{data.transcript_full_path.name}`](file://{data.transcript_full_path}) |"
+        )
+    print(
+        f"| **Started At** | {format_datetime_display(start_time, str(start_time)) if start_time else 'unknown'} |"
+    )
+    print(
+        f"| **Ended At** | {format_datetime_display(end_time, str(end_time)) if end_time else 'unknown'} |"
+    )
     print(f"| **Duration** | {duration_str} |")
     print(f"| **Total Steps** | {len(data.steps)} |")
     for k, v in meta.items():
-        print(f"| **{sanitize_md_cell(k)}** | {sanitize_md_cell(str(v))} |")
+        if k == "Workspace":
+            print(
+                f"| **{sanitize_md_cell(k)}** | [`{sanitize_md_cell(str(v))}`](file://{v}) |"
+            )
+        else:
+            print(f"| **{sanitize_md_cell(k)}** | {sanitize_md_cell(str(v))} |")
     print(f"| **Scratch Files** | {len(scratch_items)} |")
     print(f"| **Uploaded Files** | {len(uploaded_items)} |\n")
 
@@ -907,6 +1027,228 @@ def show_summary(data: SessionData) -> None:
             tool_counts.items(), key=lambda item: item[1], reverse=True
         ):
             print(f"| `{tool}` | {count} |")
+        print()
+
+
+def show_paths(data: SessionData) -> None:
+    """Render on-disk locations and key files for a session as Markdown."""
+    print(f"### On-Disk Locations for Session `{data.session_id}`\n")
+    print("| Component | Path / Location | Details |")
+    print("| :--- | :--- | :--- |")
+    print(
+        f"| **Session Directory** | [`{data.session_dir}`](file://{data.session_dir}) | Directory |"
+    )
+
+    logs_dir = data.session_dir / ".system_generated" / "logs"
+    if logs_dir.exists():
+        print(f"| **Logs Directory** | [`{logs_dir}`](file://{logs_dir}) | Directory |")
+
+    if data.transcript_path.exists():
+        size_kb = data.transcript_path.stat().st_size / 1024
+        print(
+            f"| **Transcript** | [`{data.transcript_path.name}`](file://{data.transcript_path}) | {len(data.steps)} steps ({size_kb:.1f} KB) |"
+        )
+
+    if (
+        data.transcript_full_path.exists()
+        and data.transcript_full_path != data.transcript_path
+    ):
+        size_kb = data.transcript_full_path.stat().st_size / 1024
+        print(
+            f"| **Full Transcript** | [`{data.transcript_full_path.name}`](file://{data.transcript_full_path}) | {len(data.full_steps)} steps ({size_kb:.1f} KB) |"
+        )
+
+    steps_dir = data.session_dir / ".system_generated" / "steps"
+    if steps_dir.exists():
+        outputs = list(steps_dir.glob("*/output.txt"))
+        print(
+            f"| **Step Outputs** | [`{steps_dir}`](file://{steps_dir}) | {len(outputs)} output files |"
+        )
+
+    meta = data.get_metadata_info()
+    if "Workspace" in meta:
+        ws_path = Path(meta["Workspace"])
+        print(
+            f"| **Workspace** | [`{ws_path}`](file://{ws_path}) | Working directory |"
+        )
+
+    scratch_dir = data.session_dir / "scratch"
+    if scratch_dir.exists():
+        scratch_files = list(scratch_dir.glob("*"))
+        if scratch_files:
+            files_desc = ", ".join(f"[{f.name}](file://{f})" for f in scratch_files[:5])
+            if len(scratch_files) > 5:
+                files_desc += f" (+{len(scratch_files) - 5} more)"
+            print(
+                f"| **Scratch Files** | [`{scratch_dir}`](file://{scratch_dir}) | {files_desc} |"
+            )
+        else:
+            print(
+                f"| **Scratch Directory** | [`{scratch_dir}`](file://{scratch_dir}) | 0 files |"
+            )
+
+    uploaded_dir = data.session_dir / ".user_uploaded"
+    if uploaded_dir.exists():
+        up_files = list(uploaded_dir.glob("*"))
+        if up_files:
+            files_desc = ", ".join(f"[{f.name}](file://{f})" for f in up_files[:5])
+            if len(up_files) > 5:
+                files_desc += f" (+{len(up_files) - 5} more)"
+            print(
+                f"| **User Uploaded** | [`{uploaded_dir}`](file://{uploaded_dir}) | {files_desc} |"
+            )
+        else:
+            print(
+                f"| **User Uploaded** | [`{uploaded_dir}`](file://{uploaded_dir}) | 0 files |"
+            )
+    print()
+
+
+def show_paths_multi(sessions_data: list[SessionData]) -> None:
+    """Render on-disk paths for multiple sessions."""
+    print(
+        f"### On-Disk Locations for Discovered Sessions ({len(sessions_data)} sessions)\n"
+    )
+    print("| Session ID | Session Directory | Transcript | Workspace |")
+    print("| :--- | :--- | :--- | :--- |")
+    for data in sessions_data:
+        s_link = f"`{data.session_id[:8]}` [↗](conversation://{data.session_id})"
+        dir_link = f"[`{data.session_dir}`](file://{data.session_dir})"
+        t_link = (
+            f"[`{data.transcript_path.name}`](file://{data.transcript_path})"
+            if data.transcript_path.exists()
+            else "(none)"
+        )
+        meta = data.get_metadata_info()
+        ws = meta.get("Workspace", "(none)")
+        ws_link = f"[`{ws}`](file://{ws})" if ws != "(none)" else "(none)"
+        print(f"| {s_link} | {dir_link} | {t_link} | {ws_link} |")
+    print()
+    for data in sessions_data:
+        show_paths(data)
+
+
+def show_comparison(s1: SessionData, s2: SessionData) -> None:
+    """Render side-by-side comparison of two sessions as Markdown."""
+    start1, end1, dur1 = s1.get_start_and_end_times()
+    start2, end2, dur2 = s2.get_start_and_end_times()
+    meta1 = s1.get_metadata_info()
+    meta2 = s2.get_metadata_info()
+
+    user_reqs1 = s1.get_user_requests()
+    user_reqs2 = s2.get_user_requests()
+
+    tools1 = s1.get_tool_counts()
+    tools2 = s2.get_tool_counts()
+    all_tools = sorted(set(tools1.keys()) | set(tools2.keys()))
+
+    files1 = s1.get_modified_files()
+    files2 = s2.get_modified_files()
+
+    s1_label = f"`{s1.session_id[:8]}`"
+    s2_label = f"`{s2.session_id[:8]}`"
+
+    print(f"### Session Comparison: {s1_label} vs {s2_label}\n")
+
+    # Overview table
+    print(f"| Metric / Property | Session 1 ({s1_label}) | Session 2 ({s2_label}) |")
+    print("| :--- | :--- | :--- |")
+    print(
+        f"| **Session ID** | `{s1.session_id}` [↗](conversation://{s1.session_id}) | `{s2.session_id}` [↗](conversation://{s2.session_id}) |"
+    )
+    print(
+        f"| **Directory** | [`{s1.session_dir}`](file://{s1.session_dir}) | [`{s2.session_dir}`](file://{s2.session_dir}) |"
+    )
+    print(
+        f"| **Transcript** | [`{s1.transcript_path.name}`](file://{s1.transcript_path}) | [`{s2.transcript_path.name}`](file://{s2.transcript_path}) |"
+    )
+    print(
+        f"| **Started At** | {format_datetime_display(start1, str(start1)) if start1 else 'unknown'} | {format_datetime_display(start2, str(start2)) if start2 else 'unknown'} |"
+    )
+    print(
+        f"| **Ended At** | {format_datetime_display(end1, str(end1)) if end1 else 'unknown'} | {format_datetime_display(end2, str(end2)) if end2 else 'unknown'} |"
+    )
+    print(f"| **Duration** | {dur1} | {dur2} |")
+    print(f"| **Total Steps** | {len(s1.steps)} | {len(s2.steps)} |")
+    print(f"| **User Turns** | {len(user_reqs1)} | {len(user_reqs2)} |")
+    print(f"| **Total Tool Calls** | {sum(tools1.values())} | {sum(tools2.values())} |")
+    print(f"| **Files Written** | {len(files1)} | {len(files2)} |")
+    print(
+        f"| **Model** | {sanitize_md_cell(meta1.get('Model', 'unknown'))} | {sanitize_md_cell(meta2.get('Model', 'unknown'))} |"
+    )
+    ws1 = meta1.get("Workspace", "unknown")
+    ws2 = meta2.get("Workspace", "unknown")
+    ws1_cell = f"[`{ws1}`](file://{ws1})" if ws1 != "unknown" else "unknown"
+    ws2_cell = f"[`{ws2}`](file://{ws2})" if ws2 != "unknown" else "unknown"
+    print(f"| **Workspace** | {ws1_cell} | {ws2_cell} |\n")
+
+    # Initial User Requests
+    init1 = user_reqs1[0] if user_reqs1 else "(none)"
+    init2 = user_reqs2[0] if user_reqs2 else "(none)"
+    if init1.strip() == init2.strip():
+        print("#### Initial User Request (Identical)")
+        print(f"> {sanitize_md_cell(init1)}\n")
+    else:
+        print(f"#### Initial User Request - Session 1 ({s1_label})")
+        print(f"> {sanitize_md_cell(init1)}\n")
+        print(f"#### Initial User Request - Session 2 ({s2_label})")
+        print(f"> {sanitize_md_cell(init2)}\n")
+
+    # Subsequent user turns if any
+    if len(user_reqs1) > 1 or len(user_reqs2) > 1:
+        print("#### Subsequent User Turns")
+        if len(user_reqs1) > 1:
+            turns1 = "; ".join(f'"{sanitize_md_cell(r)}"' for r in user_reqs1[1:])
+            print(f"- **Session 1 ({s1_label})**: {turns1}")
+        if len(user_reqs2) > 1:
+            turns2 = "; ".join(f'"{sanitize_md_cell(r)}"' for r in user_reqs2[1:])
+            print(f"- **Session 2 ({s2_label})**: {turns2}")
+        print()
+
+    # Tool Invocations
+    if all_tools:
+        print("#### Tool Invocations Breakdown")
+        print(f"| Tool Name | Session 1 ({s1_label}) | Session 2 ({s2_label}) |")
+        print("| :--- | :---: | :---: |")
+        for tool in all_tools:
+            c1 = tools1.get(tool, 0)
+            c2 = tools2.get(tool, 0)
+            print(f"| `{tool}` | {c1} | {c2} |")
+        print(
+            f"| **Total Calls** | **{sum(tools1.values())}** | **{sum(tools2.values())}** |\n"
+        )
+
+    # Files created or modified
+    if files1 or files2:
+        print("#### Files Created or Modified")
+        if files1:
+            print(f"- **Session 1 ({s1_label})**:")
+            for f in files1:
+                print(f"  - [`{Path(f).name}`](file://{f}) (`{f}`)")
+        else:
+            print(f"- **Session 1 ({s1_label})**: *(none)*")
+        if files2:
+            print(f"- **Session 2 ({s2_label})**:")
+            for f in files2:
+                print(f"  - [`{Path(f).name}`](file://{f}) (`{f}`)")
+        else:
+            print(f"- **Session 2 ({s2_label})**: *(none)*")
+        print()
+
+    # Final responses / outcomes
+    resp1 = s1.get_last_model_response()
+    resp2 = s2.get_last_model_response()
+    print(f"#### Outcome / Last Response - Session 1 ({s1_label})")
+    first_lines1 = "\n".join(resp1.splitlines()[:6])
+    if len(resp1.splitlines()) > 6:
+        first_lines1 += "\n..."
+    print(f"```\n{first_lines1}\n```\n")
+
+    print(f"#### Outcome / Last Response - Session 2 ({s2_label})")
+    first_lines2 = "\n".join(resp2.splitlines()[:6])
+    if len(resp2.splitlines()) > 6:
+        first_lines2 += "\n..."
+    print(f"```\n{first_lines2}\n```\n")
 
 
 def find_triggering_step(
@@ -1003,9 +1345,7 @@ def show_steps(
             content = s.get("content", "")
             clean_preview = content.replace("\n", " ")[:90]
 
-        md_results.append(
-            (idx, time_str, source, tp, sanitize_md_cell(clean_preview))
-        )
+        md_results.append((idx, time_str, source, tp, sanitize_md_cell(clean_preview)))
         matched += 1
 
     print(f"### Timeline for `{data.session_id}`\n")
@@ -1221,9 +1561,7 @@ def cmd_step(
     print(f"- **Status**: `{status}`")
     print(f"- **Time**: `{created_at}`")
     if trigger and parent_idx is not None:
-        tool_names_str = ", ".join(
-            f"`{tc.get('name', 'tool')}`" for tc in parent_tools
-        )
+        tool_names_str = ", ".join(f"`{tc.get('name', 'tool')}`" for tc in parent_tools)
         print(f"- **Result of**: Step {parent_idx} ({tool_names_str})")
     print()
 
@@ -1405,13 +1743,13 @@ def cmd_session_search(
             source = s.get("source", "")
             time_str = ""
             with contextlib.suppress(ValueError, TypeError):
-                time_str = datetime.fromisoformat(
-                    s.get("created_at", "")
-                ).strftime("%H:%M:%S")
+                time_str = datetime.fromisoformat(s.get("created_at", "")).strftime(
+                    "%H:%M:%S"
+                )
             matches.append((idx, time_str, source, tp, desc))
 
     print(
-        f"### Search Results in Session `{data.session_id}` for \"{query}\" ({len(matches)} matching steps)\n"
+        f'### Search Results in Session `{data.session_id}` for "{query}" ({len(matches)} matching steps)\n'
     )
     if not matches:
         print("*No matching steps found.*")
@@ -1425,9 +1763,49 @@ def cmd_session_search(
         print(f"| {idx} | {time_str} | {source} | {tp} | {clean_desc} |")
 
     if limit and len(matches) > limit:
-        print(
-            f"\n*Showing {len(items_to_show)} of {len(matches)} matching steps.*"
-        )
+        print(f"\n*Showing {len(items_to_show)} of {len(matches)} matching steps.*")
+
+
+@session_app.command(name="paths")
+def cmd_session_paths(
+    ctx: typer.Context,
+    as_markdown: Annotated[
+        bool,
+        typer.Option(
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
+        ),
+    ] = True,
+) -> None:
+    """Show on-disk directory and file locations for this session with clickable links."""
+    data: SessionData = ctx.obj
+    show_paths(data)
+
+
+@session_app.command(name="compare")
+def cmd_session_compare(
+    ctx: typer.Context,
+    other_session: Annotated[
+        str,
+        typer.Argument(help="Other session ID or directory path to compare against."),
+    ],
+    as_markdown: Annotated[
+        bool,
+        typer.Option(
+            "--markdown",
+            "--md",
+            "-m",
+            help="Output results as Markdown formatted content.",
+        ),
+    ] = True,
+) -> None:
+    """Compare this session with another session side-by-side."""
+    data: SessionData = ctx.obj
+    other_dir = find_session_directory(other_session)
+    other_data = SessionData.load(other_dir)
+    show_comparison(data, other_data)
 
 
 # ---------------------------------------------------------------------------
@@ -1437,7 +1815,7 @@ def cmd_session_search(
 
 def is_explorer_invocation(args: list[str]) -> bool:
     """Determine whether the invocation targets the trace explorer or a single session."""
-    explorer_cmds = {"list", "explore", "traces", "search"}
+    explorer_cmds = {"list", "explore", "traces", "search", "compare", "paths"}
     val_flags = {
         "--limit",
         "-n",
@@ -1498,6 +1876,8 @@ def main() -> None:
             "commands",
             "raw",
             "search",
+            "paths",
+            "compare",
         }
         has_subcommand = any(arg in session_subcommands for arg in args)
         final_args = list(args)
