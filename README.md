@@ -19,14 +19,16 @@ This repository is structured as a standalone Antigravity Skill package:
 │           └── scripts/
 │               └── agy-brain-explorer.py         # Standalone CLI exploration script (PEP 723)
 ├── brain.html                                    # Interactive Antigravity Brain Directory Specification
-├── common.css                                    # Shared stylesheet for brain.html and index.html
+├── common.css                                    # Shared stylesheet for brain.html, index.html, and skill.html
 ├── index.html                                    # Interactive Code & Architecture Walkthrough (agy-brain-explorer.py)
+├── skill.html                                    # Interactive Antigravity Skill Specification & SKILL.md Breakdown
 ├── LICENSE                                       # Apache 2.0 License
 └── README.md                                     # Documentation and usage guide
 ```
 
 - **[`SKILL.md`](.agents/skills/agy-brain-explorer/SKILL.md)**: Teaches Antigravity agents how and when to invoke the tool, including required parameters, sandbox bypass instructions, and command recipes.
 - **[`scripts/agy-brain-explorer.py`](.agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py)**: The executable Python script featuring PEP 723 inline metadata for zero-config execution via `uv`.
+- **[`skill.html`](skill.html)**: Interactive Antigravity Skill Specification and annotated breakdown of `SKILL.md`, detailing agent progressive disclosure, sandbox bypass requirements, and interactive workflow execution.
 - **[`brain.html`](brain.html)**: Interactive visual guide and technical specification covering the Antigravity Brain directory filesystem hierarchy, dual-mode JSONL transcripts, step execution logs, and metadata heuristics.
 - **[`index.html`](index.html)**: Syntax-highlighted, deep-dive code walkthrough of `agy-brain-explorer.py` across 18 architectural sections.
 - **[`common.css`](common.css)**: Shared CSS design system providing unified dark/light themes, typography, navigation, card components, and responsive layouts.

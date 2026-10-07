@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Skill Specification &amp; SKILL.md Breakdown</title>
+    <meta name="description" content="Comprehensive specification of the Antigravity Skill architecture and annotated breakdown of SKILL.md for agy-brain-explorer.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+    
+    <!-- Prism.js Syntax Highlighting Theme -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css">
+    
+    <!-- Shared Common Stylesheet -->
+    <link rel="stylesheet" href="common.css">
+
+    <style>
+        /* Specific enhancements for skill.html */
+        .workflow-tabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 8px;
+            margin: 16px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .workflow-tab-btn {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-muted);
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .workflow-tab-btn:hover {
+            border-color: var(--border-focus);
+            color: var(--text-heading);
+            background: var(--bg-card-header);
+        }
+        .workflow-tab-btn.active {
+            background: var(--badge-bg);
+            border-color: var(--badge-border);
+            color: var(--accent-primary);
+        }
+        .workflow-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 14px;
+        }
+        .pipeline-diagram {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        @media (min-width: 900px) {
+            .pipeline-diagram {
+                flex-direction: row;
+                align-items: stretch;
+            }
+        }
+        .pipeline-step {
+            flex: 1;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 16px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        .pipeline-step-num {
+            display: inline-flex;
+            width: 24px;
+            height: 24px;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: var(--badge-bg);
+            border: 1px solid var(--badge-border);
+            color: var(--accent-primary);
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .pipeline-step-title {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 6px;
+        }
+        .pipeline-step-desc {
+            font-size: 0.82rem;
+            color: var(--text-muted);
+            line-height: 1.45;
+        }
+        .annotated-chunk {
+            border-left: 3px solid var(--accent-primary);
+            padding-left: 16px;
+            margin: 24px 0 16px 0;
+        }
+        .annotated-chunk-title {
+            font-size: 1.02rem;
+            font-weight: 700;
+            color: var(--text-heading);
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .annotated-chunk-meta {
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Reading Progress Bar -->
+    <div id="progress-bar"></div>
+
+    <!-- Sticky App Header -->
+    <header class="app-header">
+        <div class="header-container">
+            <div class="brand-group">
+                <div class="brand-logo">&#x2699;</div>
+                <div class="brand-text">
+                    <h1>Antigravity Skill Specification</h1>
+                    <p>Agent Discovery, Runbook Contract &amp; SKILL.md Breakdown</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <a href="index.html" class="nav-btn-link" title="Open Python Code Walkthrough">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="16 18 22 12 16 6"></polyline>
+                        <polyline points="8 6 2 12 8 18"></polyline>
+                    </svg>
+                    Code Walkthrough
+                </a>
+                <a href="brain.html" class="nav-btn-link" title="Open Brain Directory Specification">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                    </svg>
+                    Brain Directory Spec
+                </a>
+                <span class="badge-pill">
+                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--accent-green);"></span>
+                    v1.1 &bull; Skill Runbook
+                </span>
+                <button class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle dark/light theme">
+                    <span id="theme-icon">&#x2600;&#xFE0F;</span>
+                    <span id="theme-text">Light Mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Hero Banner -->
+        <section class="hero-banner">
+            <div class="hero-card">
+                <h2 class="hero-title">The Antigravity Skill Contract &amp; SKILL.md</h2>
+                <p class="hero-subtitle">
+                    In Google Antigravity, agents don't guess how to execute complex tasks. They rely on <strong>Skills</strong>: structured directories containing an instruction runbook (<code>SKILL.md</code>) and companion executables. This document provides a complete architectural breakdown of <code>SKILL.md</code>, explaining how progressive disclosure triggers agent activation, why <code>BypassSandbox: true</code> is essential, and how the script orchestrates session discovery across <code>~/.gemini</code>.
+                </p>
+                <div class="hero-stats">
+                    <div class="stat-item">
+                        <span class="stat-val">SKILL.md</span>
+                        <span class="stat-lbl">AGENT RUNBOOK</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">132</span>
+                        <span class="stat-lbl">LINES OF SPEC</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">7</span>
+                        <span class="stat-lbl">AGENT WORKFLOWS</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">PEP 723</span>
+                        <span class="stat-lbl">ZERO-CONFIG UV</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-val">Bypass</span>
+                        <span class="stat-lbl">SANDBOX POLICY</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Layout -->
+        <div class="main-layout">
+            <!-- Sticky Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-title">
+                    <span>SECTIONS</span>
+                    <span style="font-family: var(--font-mono); font-size: 0.72rem;">8 TOPICS</span>
+                </div>
+                <nav class="nav-list">
+                    <a href="#section-skill-model" class="nav-link active">1. The Antigravity Skill Model</a>
+                    <a href="#section-lifecycle" class="nav-link">2. Progressive Disclosure &amp; Lifecycle</a>
+                    <a href="#section-frontmatter" class="nav-link">3. YAML Frontmatter Specification</a>
+                    <a href="#section-runtime" class="nav-link">4. Execution Runtime &amp; UV</a>
+                    <a href="#section-sandbox" class="nav-link">5. Sandbox Bypass Justification</a>
+                    <a href="#section-deeplinks" class="nav-link">6. Native Markdown &amp; Deeplinks</a>
+                    <a href="#section-annotated" class="nav-link">7. Complete Annotated SKILL.md</a>
+                    <a href="#section-interactive-workflows" class="nav-link">8. Interactive Workflow Explorer</a>
+                </nav>
+            </aside>
+
+            <!-- Content Stream -->
+            <main class="content-stream">
+
+                <!-- Section 1: The Antigravity Skill Model -->
+                <section id="section-skill-model" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Agent Architecture</span>
+                        </div>
+                        <h2 class="section-title">1. The Antigravity Skill Model</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Unlike traditional developer scripts that require human reading and manual parameter assembly, an <strong>Antigravity Skill</strong> is a self-contained capability package designed primarily for consumption by an autonomous AI agent (such as Antigravity / Gemini).
+                        </p>
+                        <p>
+                            A skill package packages three complementary layers together:
+                        </p>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Layer</th>
+                                    <th>File / Location</th>
+                                    <th>Audience &amp; Function</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>1. Discovery Frontmatter</strong></td>
+                                    <td><code>SKILL.md</code> (lines 1&ndash;8)</td>
+                                    <td><strong>System Prompt Injector:</strong> Provides a concise description that the model evaluates against human prompts to determine if the skill is needed.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>2. Agent Runbook</strong></td>
+                                    <td><code>SKILL.md</code> (lines 10&ndash;132)</td>
+                                    <td><strong>AI Agent Playbook:</strong> Teaches the agent exact prerequisites, execution flags, sandbox bypass rules, recipe commands, and output schemas.</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>3. Companion Executable</strong></td>
+                                    <td><code>scripts/agy-brain-explorer.py</code></td>
+                                    <td><strong>Execution Engine:</strong> The standalone Python CLI script with inline PEP 723 metadata that performs the filesystem traversal, parsing, and Markdown rendering.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="note-card info">
+                        <div class="note-icon">&#x2139;&#xFE0F;</div>
+                        <div>
+                            <strong>Skill Package Philosophy:</strong> Scripts do the heavy computational lifting (parsing large JSONL files, regex scanning, computing timestamps), while <code>SKILL.md</code> provides the decision tree and instructions so the LLM invokes the script accurately without hallucinations.
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 2: Progressive Disclosure & Lifecycle -->
+                <section id="section-lifecycle" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Context Efficiency</span>
+                        </div>
+                        <h2 class="section-title">2. Progressive Disclosure &amp; Agent Lifecycle</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Loading every skill's full markdown documentation into the AI model's context window on every turn would waste tens of thousands of tokens and slow down inference. Antigravity uses <strong>Progressive Disclosure</strong>:
+                        </p>
+                    </div>
+
+                    <div class="pipeline-diagram">
+                        <div class="pipeline-step">
+                            <span class="pipeline-step-num">1</span>
+                            <div class="pipeline-step-title">Skill Indexing</div>
+                            <div class="pipeline-step-desc">
+                                Antigravity scans <code>.agents/skills/</code> and <code>~/.gemini/config/skills/</code>. It extracts <em>only</em> the <code>name</code> and <code>description</code> from the YAML frontmatter.
+                            </div>
+                        </div>
+                        <div class="pipeline-step">
+                            <span class="pipeline-step-num">2</span>
+                            <div class="pipeline-step-title">Prompt Matching</div>
+                            <div class="pipeline-step-desc">
+                                When a user prompts (e.g., <em>"Show me tool calls from yesterday's session"</em>), the model compares user intent against the skill's summary.
+                            </div>
+                        </div>
+                        <div class="pipeline-step">
+                            <span class="pipeline-step-num">3</span>
+                            <div class="pipeline-step-title">Runbook Loading</div>
+                            <div class="pipeline-step-desc">
+                                The agent calls <code>view_file</code> on <code>SKILL.md</code> to read the complete runbook instructions into active context.
+                            </div>
+                        </div>
+                        <div class="pipeline-step">
+                            <span class="pipeline-step-num">4</span>
+                            <div class="pipeline-step-title">Execution</div>
+                            <div class="pipeline-step-desc">
+                                The agent runs <code>agy-brain-explorer.py</code> via <code>run_command</code> with <code>BypassSandbox: true</code> and presents the Markdown output.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>User Prompt Intent</th>
+                                    <th>Trigger Matches?</th>
+                                    <th>Agent Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><em>"What did we do in our last Antigravity session?"</em></td>
+                                    <td><span class="category-badge" style="background:rgba(63,185,80,0.15); color:var(--accent-green); border-color:rgba(63,185,80,0.3);">YES</span></td>
+                                    <td>Loads <code>SKILL.md</code> &rarr; runs <code>uv run ... --limit 1</code> &rarr; summarizes trajectory.</td>
+                                </tr>
+                                <tr>
+                                    <td><em>"Audit shell commands run during session 74126ecc"</em></td>
+                                    <td><span class="category-badge" style="background:rgba(63,185,80,0.15); color:var(--accent-green); border-color:rgba(63,185,80,0.3);">YES</span></td>
+                                    <td>Loads <code>SKILL.md</code> &rarr; runs <code>uv run ... 74126ecc commands</code> &rarr; reports shell commands table.</td>
+                                </tr>
+                                <tr>
+                                    <td><em>"Please refactor the database connection in db.py"</em></td>
+                                    <td><span class="category-badge" style="background:rgba(248,81,73,0.15); color:var(--accent-rose); border-color:rgba(248,81,73,0.3);">NO</span></td>
+                                    <td>Skill remains unread; 0 context tokens consumed.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 3: YAML Frontmatter Specification -->
+                <section id="section-frontmatter" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Frontmatter Anatomy</span>
+                        </div>
+                        <h2 class="section-title">3. YAML Frontmatter Specification</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            The top of <code>SKILL.md</code> contains the YAML frontmatter block delimited by <code>---</code> lines. This is the only portion loaded into the agent's baseline system prompt:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">SKILL.md (Lines 1–8)</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy YAML</button>
+                        </div>
+                        <pre><code class="language-yaml">---
+name: agy-brain-explorer
+description: >-
+  Discover, list, inspect, and audit Google Antigravity session trajectories,
+  transcripts, tool invocations, and execution steps across all brain storage
+  directories under ~/.gemini. Use whenever asked to list recent/past sessions,
+  review session histories, inspect tool executions, or debug trajectory steps.
+---</code></pre>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Field</th>
+                                    <th>Syntax &amp; Type</th>
+                                    <th>Operational Mechanism</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><code>name</code></td>
+                                    <td>String (slug)</td>
+                                    <td>Unique identifier for the skill (<code>agy-brain-explorer</code>). Appears in Antigravity's internal tool registry and available skills catalog.</td>
+                                </tr>
+                                <tr>
+                                    <td><code>description</code></td>
+                                    <td>Folded block string (<code>&gt;-</code>)</td>
+                                    <td>
+                                        Specifies both <strong>capability scope</strong> (<em>what it does</em>) and <strong>trigger conditions</strong> (<em>when to use it</em>). The phrasing <em>"Use whenever asked to..."</em> acts as an explicit activation heuristic for the LLM.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 4: Execution Runtime & UV -->
+                <section id="section-runtime" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Zero-Config Python</span>
+                        </div>
+                        <h2 class="section-title">4. Execution Runtime &amp; UV</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Antigravity skill runbooks require scripts to execute reliably without prerequisites like activating a <code>.venv</code> or running manual <code>pip install</code> steps. <code>SKILL.md</code> mandates the use of Astral's <strong><code>uv</code></strong>:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">SKILL.md (Lines 16–27)</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy Run Command</button>
+                        </div>
+                        <pre><code class="language-bash"># From workspace root:
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
+
+# Or from within the skill folder:
+uv run scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]</code></pre>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Behind the scenes, <code>agy-brain-explorer.py</code> defines standard <strong>PEP 723</strong> inline script metadata:
+                        </p>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">scripts/agy-brain-explorer.py (Lines 1–6)</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy PEP 723</button>
+                        </div>
+                        <pre><code class="language-python"># /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#     "typer>=0.12.0",
+# ]
+# ///</code></pre>
+                    </div>
+
+                    <p class="prose">
+                        When <code>uv run</code> executes, it inspects these comment lines, provisions an ephemeral, cached virtual environment in milliseconds, installs <code>typer</code>, and runs the script in complete isolation.
+                    </p>
+                </section>
+
+                <!-- Section 5: Sandbox Bypass Justification -->
+                <section id="section-sandbox" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Security &amp; Sandboxing</span>
+                        </div>
+                        <h2 class="section-title">5. Sandbox Bypass Justification</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            One of the most critical instructions in <code>SKILL.md</code> is the explicit mandate for <strong><code>BypassSandbox: true</code></strong>:
+                        </p>
+                    </div>
+
+                    <div class="note-card warning">
+                        <div class="note-icon">&#x26A0;&#xFE0F;</div>
+                        <div>
+                            <strong>Crucial Execution Directive:</strong>
+                            <p>
+                                <em>"Always set <code>BypassSandbox: true</code> when executing <code>run_command</code>."</em> Without this parameter, execution fails deterministically for two foundational security reasons:
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="spec-table-container">
+                        <table class="spec-table">
+                            <thead>
+                                <tr>
+                                    <th>Failure Point</th>
+                                    <th>Standard Sandbox Behavior</th>
+                                    <th>With <code>BypassSandbox: true</code></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>1. Subprocess Spawning (<code>uv run</code>)</strong></td>
+                                    <td>
+                                        The sandbox restricts process creation permissions. Invoking <code>uv run</code> fails immediately with:
+                                        <br><code>Operation not permitted (os error 1)</code>.
+                                    </td>
+                                    <td>
+                                        Allowed to spawn child processes, construct cached Python virtualenvs, and execute the Typer CLI.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>2. Out-of-Workspace Filesystem Access</strong></td>
+                                    <td>
+                                        Standard sandbox confines file reads strictly to the current workspace root directory.
+                                    </td>
+                                    <td>
+                                        Permits read access to Antigravity's global session stores located in <code>~/.gemini/antigravity/brain/</code>, <code>~/.gemini/antigravity-cli/brain/</code>, etc.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Section 6: Native Markdown & Deeplinks -->
+                <section id="section-deeplinks" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">UI Integration</span>
+                        </div>
+                        <h2 class="section-title">6. Native Markdown &amp; Deeplinks</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Traditional CLI tools emit ANSI escape codes (e.g. terminal colors, progress spinners) which degrade into garbled escape characters when returned to an LLM context.
+                        </p>
+                        <p>
+                            <code>SKILL.md</code> establishes a <strong>Markdown-First Output Contract</strong>:
+                        </p>
+                        <ul>
+                            <li>The script detects when run without a TTY or in agent mode and emits clean, GitHub-Flavored Markdown tables, blockquotes, and fenced code blocks.</li>
+                            <li>Session identifiers are formatted with custom <code>conversation://</code> URI deeplinks:</li>
+                        </ul>
+                    </div>
+
+                    <div class="code-container">
+                        <div class="code-header">
+                            <span class="file-tag">Deeplink Markdown Format</span>
+                            <button class="copy-btn" onclick="copySnippet(this)">Copy Format</button>
+                        </div>
+                        <pre><code class="language-markdown">`74126ecc` [↗](conversation://74126ecc-9639-4ff3-9dcb-7ac2d9400986)</code></pre>
+                    </div>
+
+                    <div class="note-card success">
+                        <div class="note-icon">&#x2714;&#xFE0F;</div>
+                        <div>
+                            <strong>Interactive Chat Deeplinks:</strong> Because Antigravity's Chat UI registers the <code>conversation://</code> URI protocol, clicking the <code>[↗]</code> link instantly navigates the developer's IDE directly to that past conversation history in the editor!
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Section 7: Complete Annotated SKILL.md -->
+                <section id="section-annotated" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Annotated Code</span>
+                        </div>
+                        <h2 class="section-title">7. Complete Annotated SKILL.md Breakdown</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Below is the complete, line-by-line breakdown of the actual <code>SKILL.md</code> file from the repository, divided into its logical operational sections:
+                        </p>
+                    </div>
+
+                    <!-- Chunk 1: Frontmatter -->
+                    <div class="annotated-chunk">
+                        <div class="annotated-chunk-title">
+                            <span>Part 1: Skill Discovery &amp; Trigger Metadata</span>
+                        </div>
+                        <div class="annotated-chunk-meta">Lines 1–8 of SKILL.md</div>
+                        <div class="code-container">
+                            <div class="code-header">
+                                <span class="file-tag">SKILL.md</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-yaml">---
+name: agy-brain-explorer
+description: >-
+  Discover, list, inspect, and audit Google Antigravity session trajectories,
+  transcripts, tool invocations, and execution steps across all brain storage
+  directories under ~/.gemini. Use whenever asked to list recent/past sessions,
+  review session histories, inspect tool executions, or debug trajectory steps.
+---</code></pre>
+                        </div>
+                        <p class="prose">
+                            <strong>Agent Behavior:</strong> This YAML block provides the metadata evaluated by the LLM during intent classification. The explicit phrasing specifies all trigger scenarios (listing, inspecting, auditing tool calls, debugging trajectory steps).
+                        </p>
+                    </div>
+
+                    <!-- Chunk 2: Environment & Sandbox -->
+                    <div class="annotated-chunk">
+                        <div class="annotated-chunk-title">
+                            <span>Part 2: Execution Environment &amp; Sandbox Directives</span>
+                        </div>
+                        <div class="annotated-chunk-meta">Lines 10–39 of SKILL.md</div>
+                        <div class="code-container">
+                            <div class="code-header">
+                                <span class="file-tag">SKILL.md</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-markdown"># Antigravity Brain Explorer Skill
+
+This skill provides procedures and commands to discover, inspect, and audit Antigravity session trajectories and conversation logs using the helper script [`agy-brain-explorer.py`](scripts/agy-brain-explorer.py).
+
+## Execution Environment &amp; Prerequisites
+
+### 1. Always Run via `uv`
+Run Python scripts using [`uv`](https://docs.astral.sh/uv/) so PEP 723 inline script dependencies (`typer>=0.12.0`) are automatically resolved and cached without manual virtual environment management.
+
+From the workspace root:
+```bash
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
+```
+
+Or from the skill folder:
+```bash
+uv run scripts/agy-brain-explorer.py [OPTIONS] [COMMAND]
+```
+
+### 2. Mandatory Bypass Sandbox (`BypassSandbox: true`)
+> [!IMPORTANT]
+> **Always set `BypassSandbox: true` when executing `run_command`.**
+> 1. Running `uv run` inside Antigravity's standard sandbox fails with `Operation not permitted (os error 1)` when attempting to spawn the Python process.
+> 2. Discovering and inspecting session trajectories requires reading directory structures and JSONL transcripts located in user storage at `~/.gemini/**/brain/`, which reside outside the workspace sandbox boundary.
+
+### 3. Native Markdown Rendering
+> [!TIP]
+> **All results render directly as GitHub Flavored Markdown.**
+> Session IDs are formatted with copyable code plus Antigravity UI navigation links (`` `&lt;short_id&gt;` [↗](conversation://&lt;full_session_uuid&gt;) ``) so the user can easily copy the session ID to ask follow-up questions or click directly into past conversations from chat.</code></pre>
+                        </div>
+                        <p class="prose">
+                            <strong>Agent Behavior:</strong> Instructs the agent on how to call <code>run_command</code> correctly. It explicitly warns against attempting to invoke without <code>BypassSandbox: true</code>, preventing runtime failure loops.
+                        </p>
+                    </div>
+
+                    <!-- Chunk 3: Discovery & Search -->
+                    <div class="annotated-chunk">
+                        <div class="annotated-chunk-title">
+                            <span>Part 3: Discovery &amp; Search Workflows</span>
+                        </div>
+                        <div class="annotated-chunk-meta">Lines 42–75 of SKILL.md</div>
+                        <div class="code-container">
+                            <div class="code-header">
+                                <span class="file-tag">SKILL.md</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-markdown">## Workflows &amp; Command Reference
+
+### 1. Discover and List Recent Sessions
+
+Scan all brain directories under `~/.gemini` and display conversation traces ordered chronologically (newest first):
+
+```bash
+# List most recent 10 sessions formatted as Markdown with clickable conversation links (default)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10
+
+# Filter by a specific brain root (e.g., 'antigravity-cli' or 'antigravity')
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --brain antigravity --limit 10
+
+# Filter sessions by initial user prompt query
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py -q "Please build a unified static HTML"
+```
+
+### 2. Search Sessions by Prompt or Deep Transcript (`search`)
+
+Find sessions matching a prompt keyword or search across conversation turns and tool calls:
+
+```bash
+# Search sessions by initial prompt across all brain directories
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "Please build a unified static HTML"
+
+# Filter search by brain root
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build static docs" --brain antigravity-cli
+
+# Deep search across all conversation steps (user requests, model responses, tool args, commands)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build-docs-site.js" --all-steps
+
+# Search within a single specific session
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; search "node --test"
+```</code></pre>
+                        </div>
+                        <p class="prose">
+                            <strong>Agent Behavior:</strong> Equips the agent to quickly find past work when a user asks <em>"What did we discuss about X?"</em> or <em>"Find the session where we debugged the build script"</em>. The agent can use <code>-q</code> or <code>search --all-steps</code> to locate the session in seconds.
+                        </p>
+                    </div>
+
+                    <!-- Chunk 4: Inspection & Auditing -->
+                    <div class="annotated-chunk">
+                        <div class="annotated-chunk-title">
+                            <span>Part 4: Session Inspection, Auditing &amp; Raw JSON</span>
+                        </div>
+                        <div class="annotated-chunk-meta">Lines 77–132 of SKILL.md</div>
+                        <div class="code-container">
+                            <div class="code-header">
+                                <span class="file-tag">SKILL.md</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-markdown">### 3. Inspect Session Overview (`summary`)
+
+Pass a session UUID, partial prefix (e.g. `c1e9ba23`), or directory path to view metadata, timing, duration, model, workspace, and tool usage frequencies:
+
+```bash
+# Markdown formatted overview (default)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION_ID_OR_PREFIX&gt;
+```
+
+### 4. Browse Conversation Timeline (`steps`)
+
+Display conversation turns with step numbers, timestamps, sources (`USER_EXPLICIT`, `MODEL`), types, and preview/actions:
+
+```bash
+# Markdown table of conversation steps (default)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; steps --limit 20
+
+# Filter to steps that called tools
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; steps --tools-only
+
+# Filter to user prompt steps only
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; steps --user-only
+```
+
+### 5. Drill Down into a Specific Step (`step`)
+
+Inspect the user prompt, model thinking, exact tool call parameters, triggering action, and step output logs:
+
+```bash
+# View step 5 details formatted in Markdown
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; step 5
+
+# Limit step output log preview to 100 lines
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; step 5 --lines 100
+```
+
+### 6. Audit Tool &amp; Command Executions
+
+Quickly review all tool invocations or shell commands run during a session:
+
+```bash
+# List all tool invocations with targets and parameters in Markdown
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; tools
+
+# Audit all shell commands run via run_command with working directories in Markdown
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; commands
+```
+
+### 7. Inspect Raw JSON Records (`raw`)
+
+Retrieve untruncated JSON step data from `transcript_full.jsonl`:
+
+```bash
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py &lt;SESSION&gt; raw 1 --full
+```</code></pre>
+                        </div>
+                        <p class="prose">
+                            <strong>Agent Behavior:</strong> Provides fine-grained diagnostic commands. An agent asked <em>"Did we run any git push commands?"</em> can immediately invoke <code>uv run ... &lt;SESSION&gt; commands</code> and parse the resulting table without manually reading thousands of lines of JSON.
+                        </p>
+                    </div>
+                </section>
+
+                <!-- Section 8: Interactive Workflow Explorer -->
+                <section id="section-interactive-workflows" class="spec-section">
+                    <div class="section-header">
+                        <div class="badge-row">
+                            <span class="category-badge">Interactive Tool</span>
+                        </div>
+                        <h2 class="section-title">8. Interactive Workflow Explorer</h2>
+                    </div>
+
+                    <div class="prose">
+                        <p>
+                            Select any of the 7 skill workflows below to inspect how the agent translates human prompts into specific CLI invocations, tool parameters, and Markdown outputs:
+                        </p>
+                    </div>
+
+                    <!-- Workflow Tabs -->
+                    <div class="workflow-tabs" id="workflow-tabs">
+                        <button class="workflow-tab-btn active" data-wf="list">1. List Recent</button>
+                        <button class="workflow-tab-btn" data-wf="search">2. Search Traces</button>
+                        <button class="workflow-tab-btn" data-wf="summary">3. Session Summary</button>
+                        <button class="workflow-tab-btn" data-wf="steps">4. Turn Timeline</button>
+                        <button class="workflow-tab-btn" data-wf="step">5. Step Drilldown</button>
+                        <button class="workflow-tab-btn" data-wf="commands">6. Audit Commands</button>
+                        <button class="workflow-tab-btn" data-wf="raw">7. Raw JSONL</button>
+                    </div>
+
+                    <div class="workflow-panel" id="workflow-panel">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                            <div>
+                                <h3 id="wf-title" style="color:var(--text-heading); font-size:1.05rem; margin-bottom:4px;">Workflow 1: Discover &amp; List Recent Sessions</h3>
+                                <p id="wf-desc" style="color:var(--text-muted); font-size:0.86rem;">Discovers conversation trajectories across all brain storage roots in ~/.gemini ordered chronologically.</p>
+                            </div>
+                            <span class="badge-pill" id="wf-badge">Default Invocation</span>
+                        </div>
+
+                        <div class="code-container">
+                            <div class="code-header">
+                                <span class="file-tag">Agent CLI Command</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-bash" id="wf-cmd">uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10</code></pre>
+                        </div>
+
+                        <div class="code-container" style="margin-top:12px;">
+                            <div class="code-header">
+                                <span class="file-tag">Agent run_command Tool Payload</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-json" id="wf-payload">{
+  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10",
+  "Cwd": "/Users/developer/my-project",
+  "BypassSandbox": true,
+  "WaitMsBeforeAsync": 5000,
+  "toolAction": "Discovering sessions",
+  "toolSummary": "List recent sessions"
+}</code></pre>
+                        </div>
+
+                        <div class="code-container" style="margin-top:12px;">
+                            <div class="code-header">
+                                <span class="file-tag">Markdown Output Received by Agent</span>
+                                <button class="copy-btn" onclick="copySnippet(this)">Copy</button>
+                            </div>
+                            <pre><code class="language-markdown" id="wf-output">### Discovered 10 Antigravity Sessions
+
+| Index | Session ID | Created At | Duration | Model | Initial Prompt |
+| :---: | :--- | :--- | :---: | :--- | :--- |
+| 1 | `74126ecc` [↗](conversation://74126ecc-9639-4ff3-9dcb-7ac2d9400986) | 2026-09-14 10:15 | 12m 40s | Gemini 2.5 Flash | Please build an HTML walkthrough... |
+| 2 | `a901ff2e` [↗](conversation://a901ff2e-1102-4ab1-8933-4f2801e021a8) | 2026-09-13 18:22 | 4m 12s | Gemini 2.5 Pro | Fix the layout bugs in sidebar... |</code></pre>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="page-footer">
+        <p>Antigravity Skill Specification &bull; Open Source Apache 2.0</p>
+        <div class="footer-links">
+            <a href="index.html">Python Code Walkthrough</a>
+            <a href="brain.html">Brain Directory Specification</a>
+            <a href="https://github.com/domesticmouse/antigravity-brain-exploration">GitHub Repository</a>
+        </div>
+    </footer>
+
+    <!-- Prism Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-bash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-markdown.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+
+    <!-- Interactive Logic -->
+    <script>
+        // Reading progress bar
+        window.addEventListener('scroll', () => {
+            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = (winScroll / height) * 100;
+            document.getElementById('progress-bar').style.width = scrolled + '%';
+        });
+
+        // Dark / Light Theme Toggle
+        function toggleTheme() {
+            const html = document.documentElement;
+            const currentTheme = html.getAttribute('data-theme') || 'dark';
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('agy-theme', newTheme);
+            updateThemeButton(newTheme);
+        }
+
+        function updateThemeButton(theme) {
+            const icon = document.getElementById('theme-icon');
+            const text = document.getElementById('theme-text');
+            if (icon && text) {
+                if (theme === 'light') {
+                    icon.textContent = '🌙';
+                    text.textContent = 'Dark Mode';
+                } else {
+                    icon.textContent = '☀️';
+                    text.textContent = 'Light Mode';
+                }
+            }
+        }
+
+        const savedTheme = localStorage.getItem('agy-theme');
+        if (savedTheme) {
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            updateThemeButton(savedTheme);
+        }
+
+        // Active Navigation Highlight via IntersectionObserver
+        const sections = document.querySelectorAll('.spec-section');
+        const navLinks = document.querySelectorAll('.nav-link');
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const id = entry.target.getAttribute('id');
+                    navLinks.forEach(link => {
+                        if (link.getAttribute('href') === `#${id}`) {
+                            link.classList.add('active');
+                        } else {
+                            link.classList.remove('active');
+                        }
+                    });
+                }
+            });
+        }, { rootMargin: '-20% 0px -70% 0px' });
+
+        sections.forEach(sec => observer.observe(sec));
+
+        // Copy button helper
+        function copySnippet(btn) {
+            const container = btn.closest('.code-container');
+            const codeEl = container.querySelector('code');
+            if (codeEl) {
+                navigator.clipboard.writeText(codeEl.innerText).then(() => {
+                    const originalText = btn.textContent;
+                    btn.textContent = 'Copied!';
+                    btn.style.borderColor = 'var(--accent-green)';
+                    btn.style.color = 'var(--accent-green)';
+                    setTimeout(() => {
+                        btn.textContent = originalText;
+                        btn.style.borderColor = '';
+                        btn.style.color = '';
+                    }, 2000);
+                });
+            }
+        }
+
+        // Interactive Workflow Data
+        const workflowData = {
+            'list': {
+                title: 'Workflow 1: Discover & List Recent Sessions',
+                desc: 'Scans all brain storage directories (~/.gemini/**/brain/) and formats chronological traces with clickable deeplinks.',
+                badge: 'Default Mode',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py --limit 10",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 5000,\n  "toolAction": "Discovering sessions",\n  "toolSummary": "List recent sessions"\n}',
+                output: '### Discovered 10 Antigravity Sessions\n\n| Index | Session ID | Created At | Duration | Model | Initial Prompt |\n| :---: | :--- | :--- | :---: | :--- | :--- |\n| 1 | `74126ecc` [↗](conversation://74126ecc-9639-4ff3-9dcb-7ac2d9400986) | 2026-09-14 10:15 | 12m 40s | Gemini 2.5 Flash | Please build an HTML walkthrough... |\n| 2 | `a901ff2e` [↗](conversation://a901ff2e-1102-4ab1-8933-4f2801e021a8) | 2026-09-13 18:22 | 4m 12s | Gemini 2.5 Pro | Fix the layout bugs in sidebar... |'
+            },
+            'search': {
+                title: 'Workflow 2: Deep Transcript Search',
+                desc: 'Matches queries across prompts or deep transcript steps (model thinking, tool arguments, command strings).',
+                badge: 'Full-Text Search',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build-docs" --all-steps',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search \\"build-docs\\" --all-steps",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 5000,\n  "toolAction": "Searching sessions",\n  "toolSummary": "Deep search transcripts"\n}',
+                output: '### Search Results for "build-docs" across all steps\n\n- `74126ecc` [↗](conversation://74126ecc): Step 4 called `run_command` with `npm run build-docs`\n- `3f99aa12` [↗](conversation://3f99aa12): Step 12 modified `scripts/build-docs.sh`'
+            },
+            'summary': {
+                title: 'Workflow 3: Session Overview & Metrology',
+                desc: 'Extracts session start/finish, wallclock duration, model detected, client timezone, mentioned files, and tool call frequencies.',
+                badge: 'Inspection',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc summary',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc summary",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 3000,\n  "toolAction": "Inspecting session",\n  "toolSummary": "Get session summary"\n}',
+                output: '## Session Summary: `74126ecc`\n\n- **Session Path**: `~/.gemini/antigravity/brain/74126ecc-9639-4ff3-9dcb-7ac2d9400986`\n- **Model**: `gemini-2.5-flash`\n- **Duration**: `18 minutes, 24 seconds` (28 steps)\n- **Workspace**: `/Users/developer/my-project`\n\n### Tool Usage Frequencies\n- `view_file`: 14 calls\n- `run_command`: 8 calls\n- `replace_file_content`: 4 calls'
+            },
+            'steps': {
+                title: 'Workflow 4: Conversation Timeline & Turns',
+                desc: 'Tabulates conversation progression with step numbers, timestamps, sources (USER_EXPLICIT vs MODEL), and filters.',
+                badge: 'Turn Timeline',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc steps --tools-only',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc steps --tools-only",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 3000,\n  "toolAction": "Listing steps",\n  "toolSummary": "Filter tool steps"\n}',
+                output: '| Step | Timestamp | Source | Type | Tools / Action |\n| :---: | :--- | :--- | :--- | :--- |\n| 3 | 10:16:04 | `MODEL` | `PLANNER_RESPONSE` | `view_file` (package.json) |\n| 5 | 10:17:22 | `MODEL` | `PLANNER_RESPONSE` | `run_command` (`npm test`) |\n| 8 | 10:19:10 | `MODEL` | `PLANNER_RESPONSE` | `write_to_file` (index.html) |'
+            },
+            'step': {
+                title: 'Workflow 5: Drill Down into Step Outputs',
+                desc: 'Inspects model internal reasoning (thinking), exact tool arguments, and stdout execution logs from output.txt.',
+                badge: 'Step Audit',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc step 5 --lines 50',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc step 5 --lines 50",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 3000,\n  "toolAction": "Inspecting step",\n  "toolSummary": "Audit step 5 output"\n}',
+                output: '### Step 5 Details (Turn 3, MODEL)\n\n**Tool Invocations:**\n- `run_command`\n  - `CommandLine`: `npm test`\n  - `Cwd`: `/Users/developer/my-project`\n\n**Execution Log (`output.txt`):**\n```text\nPASS src/index.test.ts (4 tests passed)\nTest Suites: 1 passed, 1 total\n```'
+            },
+            'commands': {
+                title: 'Workflow 6: Audit Shell Commands',
+                desc: 'Extracts and tabulates every command line executed across the entire conversation along with working directories.',
+                badge: 'Security Audit',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc commands',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc commands",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 3000,\n  "toolAction": "Auditing commands",\n  "toolSummary": "List shell commands"\n}',
+                output: '### Shell Commands Executed in Session `74126ecc`\n\n| Step | Working Directory | Command Line |\n| :---: | :--- | :--- |\n| 2 | `/Users/developer/my-project` | `git status` |\n| 5 | `/Users/developer/my-project` | `npm test` |\n| 11 | `/Users/developer/my-project` | `npm run build` |'
+            },
+            'raw': {
+                title: 'Workflow 7: Untruncated Raw JSON Records',
+                desc: 'Reads transcript_full.jsonl to return exact untruncated step payloads for deep trajectory analysis.',
+                badge: 'Raw Telemetry',
+                cmd: 'uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc raw 1 --full',
+                payload: '{\n  "CommandLine": "uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py 74126ecc raw 1 --full",\n  "Cwd": "/Users/developer/my-project",\n  "BypassSandbox": true,\n  "WaitMsBeforeAsync": 3000,\n  "toolAction": "Reading raw step",\n  "toolSummary": "Fetch untruncated JSON"\n}',
+                output: '```json\n{\n  "step_index": 1,\n  "source": "USER_EXPLICIT",\n  "type": "USER_INPUT",\n  "status": "DONE",\n  "created_at": "2026-09-14T10:15:02.124Z",\n  "content": "Please build a unified static HTML walkthrough...",\n  "tool_calls": []\n}\n```'
+            }
+        };
+
+        const tabBtns = document.querySelectorAll('.workflow-tab-btn');
+        const wfTitle = document.getElementById('wf-title');
+        const wfDesc = document.getElementById('wf-desc');
+        const wfBadge = document.getElementById('wf-badge');
+        const wfCmd = document.getElementById('wf-cmd');
+        const wfPayload = document.getElementById('wf-payload');
+        const wfOutput = document.getElementById('wf-output');
+
+        tabBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                tabBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const key = btn.getAttribute('data-wf');
+                const item = workflowData[key];
+                if (item) {
+                    wfTitle.textContent = item.title;
+                    wfDesc.textContent = item.desc;
+                    wfBadge.textContent = item.badge;
+                    wfCmd.textContent = item.cmd;
+                    wfPayload.textContent = item.payload;
+                    wfOutput.textContent = item.output;
+                    Prism.highlightElement(wfCmd);
+                    Prism.highlightElement(wfPayload);
+                    Prism.highlightElement(wfOutput);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
