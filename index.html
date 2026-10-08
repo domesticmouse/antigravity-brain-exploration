@@ -442,10 +442,15 @@ class SessionData:
                 </div>
                 <div class="prose-deep-dive">
                     
-            <h4>Inspection Helpers:</h4>
+            <h4>Inspection & Trajectory Helpers:</h4>
             <ul>
                 <li><strong><code>get_step_output_file(step_index)</code></strong>: Resolves the physical path to <code>.system_generated/steps/&lt;step_index&gt;/output.txt</code>. Tool execution outputs and terminal command logs are preserved in these text files.</li>
                 <li><strong><code>get_user_request_clean()</code></strong>: Antigravity encapsulates user inputs in <code>&lt;USER_REQUEST&gt;...&lt;/USER_REQUEST&gt;</code> XML tags alongside system metadata. This method uses a regex match (with <code>re.DOTALL</code>) to strip prompt boilerplate and isolate the user's actual prompt text.</li>
+                <li><strong><code>get_user_requests()</code></strong>: Extracts all conversational turns and prompt submissions throughout the entire trajectory, enabling multi-turn audit comparisons.</li>
+                <li><strong><code>get_last_model_response()</code></strong>: Retrieves the final planner response or terminal outcome of the session to quickly assess whether the agent fulfilled the user's request.</li>
+                <li><strong><code>get_tool_counts()</code></strong>: Aggregates total invocations per tool across all steps into a frequency dictionary.</li>
+                <li><strong><code>get_start_and_end_times()</code></strong>: Computes starting timestamp, ending timestamp, and human-readable elapsed wallclock duration (<code>end_time - start_time</code>).</li>
+                <li><strong><code>get_modified_files()</code></strong>: Scans tool call parameters across the session for file-writing actions (<code>write_to_file</code> and <code>replace_file_content</code>) to compile a list of all created or edited targets.</li>
                 <li><strong><code>get_metadata_info()</code></strong>:
                     <ul>
                         <li><strong>Model Detection</strong>: Extracts the active AI model name by parsing system notification strings like <code>The user changed setting `Model Selection` from ... to Gemini 3.8 Flash (Medium)</code>.</li>
@@ -1485,6 +1490,13 @@ def explorer_callback(
                         <li>Extracted snippet showing the matching tool call, argument, or content</li>
                     </ul>
                 </li>
+                <li><strong>Cross-Session Comparative & Path Commands</strong>:
+                    <p>In addition to search, <code>explorer_app</code> exposes:</p>
+                    <ul>
+                        <li><strong><code>cmd_explorer_compare(session1, session2)</code></strong>: Compares two sessions side-by-side across timing, user turns, tool frequencies, modified files, and outcomes.</li>
+                        <li><strong><code>cmd_explorer_paths(sessions)</code></strong>: Resolves and outputs on-disk filesystem targets (directories, JSONL transcripts, logs, step folders) for one or multiple sessions simultaneously.</li>
+                    </ul>
+                </li>
             </ul>
         
                 </div>
@@ -1681,17 +1693,26 @@ def cmd_explorer_search(
                 </div>
                 <div class="prose-deep-dive">
                     
-            <h4>Computed Metrics:</h4>
+            <h4>Computed Metrics & Renderers:</h4>
             <ul>
-                <li><strong>Session Timing & Duration</strong>: Calculates exact elapsed time between the initial prompt timestamp and final response step (<code>end_time - start_time</code>).</li>
-                <li><strong>Artifact Counting</strong>: Inspects physical disk directories:
+                <li><strong><code>show_summary(data)</code></strong>: Computes session metrics and renders a Markdown overview table:
                     <ul>
-                        <li><code>session_dir / "scratch"</code>: Files generated during temporary analysis or intermediate steps.</li>
-                        <li><code>session_dir / ".user_uploaded"</code>: Files supplied directly by the user.</li>
+                        <li><strong>Clickable URI Links</strong>: Generates <code>file://</code> links for the session directory, compact <code>transcript.jsonl</code>, full <code>transcript_full.jsonl</code>, and active workspace CWD.</li>
+                        <li><strong>Session Timing & Duration</strong>: Calculates exact elapsed time between initial prompt timestamp and final response step (<code>end_time - start_time</code>).</li>
+                        <li><strong>Artifact Counting</strong>: Inspects physical disk directories (<code>scratch/</code> and <code>.user_uploaded/</code>).</li>
+                        <li><strong>Tool Usage Frequency Table</strong>: Aggregates all <code>tool_calls</code> across all steps in the session, sorted in descending frequency.</li>
                     </ul>
                 </li>
-                <li><strong>Tool Usage Frequency Table</strong>: Aggregates all <code>tool_calls</code> across all steps in the session, sorted in descending order of frequency (e.g. <code>run_command</code>: 43, <code>view_file</code>: 17, <code>call_mcp_tool</code>: 17).</li>
-                <li><strong>Initial Prompt Blockquote</strong>: Highlights the exact user prompt that initiated the trajectory.</li>
+                <li><strong><code>show_paths(data)</code> & <code>show_paths_multi(sessions_data)</code></strong>: Formats detailed on-disk component locations (session directory, transcript files with sizes and step counts, logs directory, step output folders, scratch directory, and workspace) with clickable <code>file://</code> links.</li>
+                <li><strong><code>show_comparison(s1, s2)</code></strong>: Renders a comprehensive side-by-side Markdown comparison matrix between two sessions:
+                    <ul>
+                        <li>Compares metadata, timing, duration, step counts, user turns, total tool calls, files written, and model configuration.</li>
+                        <li>Identifies identical vs diverged initial user prompts and outlines subsequent follow-up user turns.</li>
+                        <li>Produces an itemized side-by-side tool call count table across all invoked tools.</li>
+                        <li>Lists all created or modified files with clickable <code>file://</code> links.</li>
+                        <li>Previews the closing assistant responses and outcomes for both trajectories.</li>
+                    </ul>
+                </li>
             </ul>
         
                 </div>
@@ -2437,6 +2458,8 @@ def cmd_step(
             <ul>
                 <li><strong><code>cmd_tools</code></strong>: Invoked via <code>agy-brain-explorer.py &lt;SESSION&gt; tools</code> to generate the complete tool call audit table.</li>
                 <li><strong><code>cmd_commands</code></strong>: Invoked via <code>agy-brain-explorer.py &lt;SESSION&gt; commands</code> to list all shell executions.</li>
+                <li><strong><code>cmd_paths</code></strong>: Invoked via <code>agy-brain-explorer.py &lt;SESSION&gt; paths</code> to list all on-disk component locations with clickable <code>file://</code> links.</li>
+                <li><strong><code>cmd_compare</code></strong>: Invoked via <code>agy-brain-explorer.py &lt;SESSION&gt; compare &lt;OTHER_SESSION&gt;</code> to execute a differential comparison against another session.</li>
                 <li><strong><code>cmd_raw</code></strong>: Dumps the exact raw JSON record of any step index formatted with 2-space indentation. Features a <code>--full / --compact</code> switch allowing users to compare the truncated record from <code>transcript.jsonl</code> with the untruncated record in <code>transcript_full.jsonl</code>.</li>
             </ul>
         
@@ -2672,22 +2695,24 @@ def cmd_session_search(
                 <div class="prose-intro">
                     
             <p>Typer natively expects a single application root. However, <code>agy-brain-explorer.py</code> supports two distinct interaction paradigms:
-            <br>1) <strong>Trace Explorer Mode</strong> (no session argument, discovering all sessions across all brains or executing global search), and
-            <br>2) <strong>Session Inspection Mode</strong> (taking a session argument followed by subcommands like <code>summary</code>, <code>steps</code>, <code>step</code>, <code>tools</code>, <code>commands</code>, <code>raw</code>, or <code>search</code>).</p>
+            <br>1) <strong>Trace Explorer Mode</strong> (discovering all sessions, executing global search, multi-session path listing, or side-by-side comparison via <code>search</code>, <code>compare</code>, <code>paths</code>), and
+            <br>2) <strong>Session Inspection Mode</strong> (taking a session argument followed by subcommands like <code>summary</code>, <code>paths</code>, <code>steps</code>, <code>step</code>, <code>tools</code>, <code>commands</code>, <code>compare</code>, <code>raw</code>, or <code>search</code>).</p>
             <p>This final section implements a smart CLI router (<code>is_explorer_invocation()</code> and <code>main()</code>) that seamlessly bridges both Typer applications into a unified binary.</p>
         
                 </div>
                 <div class="prose-deep-dive">
                     
-            <h4>Routing Mechanism & Search Integration:</h4>
+            <h4>Routing Mechanism & Multi-Mode Integration:</h4>
             <ul>
                 <li><strong><code>is_explorer_invocation(args)</code></strong>:
-                    <p>Parses command-line arguments, skipping option flags and their values (including <code>--query</code>, <code>-q</code>, <code>--search</code>, <code>-s</code>). If no positional argument is found, or if the first positional argument matches an explorer keyword (<code>list</code>, <code>explore</code>, <code>traces</code>, <code>search</code>), it routes execution to <code>explorer_app</code>.</p>
+                    <p>Parses command-line arguments, skipping option flags and their values (including <code>--query</code>, <code>-q</code>, <code>--search</code>, <code>-s</code>). If no positional argument is found, or if the first positional argument matches an explorer keyword (<code>list</code>, <code>explore</code>, <code>traces</code>, <code>search</code>, <code>compare</code>, <code>paths</code>), it routes execution to <code>explorer_app</code>.</p>
                 </li>
-                <li><strong>Search Routing Resolution</strong>:
+                <li><strong>Command & Search Routing Resolution</strong>:
                     <ul>
+                        <li>If invoked as <code>agy-brain-explorer.py compare &lt;S1&gt; &lt;S2&gt;</code> or <code>agy-brain-explorer.py paths &lt;S1&gt;...</code>, it routes to <code>explorer_app</code>.</li>
+                        <li>If invoked as <code>agy-brain-explorer.py &lt;SESSION&gt; compare &lt;S2&gt;</code> or <code>agy-brain-explorer.py &lt;SESSION&gt; paths</code>, <code>&lt;SESSION&gt;</code> is detected as the positional target, routing to <code>session_app</code>.</li>
                         <li>If invoked as <code>agy-brain-explorer.py search &lt;QUERY&gt;</code>, the argument is preserved and routed to <code>explorer_app</code>'s <code>cmd_explorer_search()</code>.</li>
-                        <li>If invoked as <code>agy-brain-explorer.py &lt;SESSION&gt; search &lt;QUERY&gt;</code>, <code>&lt;SESSION&gt;</code> is detected as a positional target, routing to <code>session_app</code> and invoking <code>cmd_session_search()</code>.</li>
+                        <li>If invoked as <code>agy-brain-explorer.py &lt;SESSION&gt; search &lt;QUERY&gt;</code>, <code>&lt;SESSION&gt;</code> routes to <code>session_app</code>'s <code>cmd_session_search()</code>.</li>
                         <li>If invoked with <code>-q &lt;QUERY&gt;</code> or <code>--query &lt;QUERY&gt;</code>, it routes to <code>explorer_app</code>'s callback, executing prompt-filtered discovery.</li>
                     </ul>
                 </li>
