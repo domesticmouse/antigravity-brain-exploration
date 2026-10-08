@@ -74,7 +74,10 @@ The agent activates the skill, reads `SKILL.md`, and runs the script using `run_
 ## Standalone CLI Features
 
 - **Multi-Brain Trace Explorer (Default)**: Running without arguments discovers all conversation traces across all brain directories under `~/.gemini` (e.g. `antigravity`, `antigravity-cli`, `antigravity-acp`).
-- **Markdown-First Rendering**: All results render cleanly as GitHub Flavored Markdown with clickable `conversation://` session links that open directly in Antigravity.
+- **Prompt & Deep Transcript Search**: Search sessions by initial user prompt or deeply across all conversation turns, model responses, and tool calls with `--all-steps`.
+- **Side-by-Side Session Comparison (`compare`)**: Compare two sessions side-by-side to inspect differences in timing, duration, step counts, user turns, tool invocation frequencies, files modified, and outcomes.
+- **On-Disk Path Inspection (`paths`)**: View exact on-disk directory paths, `transcript.jsonl` and `transcript_full.jsonl` files, sizes, step logs, scratch files, and workspaces with clickable markdown links.
+- **Markdown-First Rendering**: All results render cleanly as GitHub Flavored Markdown with clickable `conversation://` session links that open directly in Antigravity and `file://` links for local files.
 - **Chronological Ordering**: Traces are ordered by actual creation timestamp (newest first by default), rather than arbitrary directory sorting.
 - **Interactive Trace Browser**: Launch with `--interactive` / `-i` to view traces and select any session by numerical index to inspect its summary, timeline, or tools without typing long UUIDs.
 - **Automated Session Discovery**: Pass an absolute path, a local relative path, or just a session UUID prefix (e.g. `74126ecc`). Sessions located anywhere under `~/.gemini/**/brain/` are automatically resolved.
@@ -108,15 +111,25 @@ SCRIPT=".agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py"
 # 1. Explore all conversation traces across ~/.gemini (newest first)
 uv run $SCRIPT
 
-# 2. Interactive trace browser (select by number to inspect)
+# 2. Search sessions by prompt or deep transcript
+uv run $SCRIPT search "create firmware"
+uv run $SCRIPT search "build-docs" --all-steps
+
+# 3. Compare two sessions side-by-side
+uv run $SCRIPT compare 54cedc94 f779e57c
+
+# 4. View on-disk locations and transcript paths
+uv run $SCRIPT paths 54cedc94 f779e57c
+
+# 5. Interactive trace browser (select by number to inspect)
 uv run $SCRIPT -i
 
-# 3. Filter traces or customize sorting
+# 6. Filter traces or customize sorting
 uv run $SCRIPT --limit 10
 uv run $SCRIPT --asc              # Oldest first
 uv run $SCRIPT --brain antigravity-cli
 
-# 4. Inspect a specific session by UUID or prefix
+# 7. Inspect a specific session by UUID or prefix
 uv run $SCRIPT 74126ecc-9639-4ff3-9dcb-7ac2d9400986
 uv run $SCRIPT 74126ecc steps --limit 5
 uv run $SCRIPT 74126ecc step 1
@@ -179,7 +192,61 @@ uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py -i
 
 ---
 
-### 2. Single-Session Inspection
+### 2. Search Sessions by Prompt or Deep Transcript (`search`)
+
+Find sessions matching a keyword in the initial prompt or deep search across every step (prompts, model responses, tool arguments, and executed commands):
+
+```bash
+# Search sessions by initial user prompt across all brain directories
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "Please build a unified static HTML"
+
+# Filter search to a specific brain root
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build docs" --brain antigravity-cli
+
+# Deep search across all conversation steps (user requests, model responses, tool args, commands)
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py search "build-docs-site.js" --all-steps
+
+# Search within a single specific session
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> search "node --test"
+```
+
+**Options:**
+- `-s`, `--all-steps`: Deep search across all conversation turns, model responses, and tool calls.
+- `-b`, `--brain <STR>`: Filter search by brain root name.
+- `-n`, `--limit <INT>`: Limit number of matching results returned (default: `30`).
+- `-a`, `--all`: Return all matching results without pagination limit.
+
+---
+
+### 3. Compare Two Sessions Side-by-Side (`compare`)
+
+Compare two sessions side-by-side to review timing, duration, step counts, user turns, tool invocations, files created/modified, and final outcomes:
+
+```bash
+# Compare two sessions by IDs or prefixes
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py compare <SESSION_1> <SESSION_2>
+
+# Or via session inspection syntax
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION_1> compare <SESSION_2>
+```
+
+---
+
+### 4. Inspect On-Disk Locations and Transcripts (`paths`)
+
+Display exact disk locations and clickable file links (`file://`) for session directories, transcripts (`transcript.jsonl`, `transcript_full.jsonl`), logs, step outputs, scratch files, and workspaces:
+
+```bash
+# Show disk paths for a single session
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> paths
+
+# Show disk paths for multiple sessions simultaneously
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py paths <SESSION_1> <SESSION_2>
+```
+
+---
+
+### 5. Single-Session Inspection
 
 Inspect a specific session by supplying its full UUID, partial prefix, or folder path:
 
@@ -194,6 +261,13 @@ Displays a high-level overview of the session, including metadata, timing, durat
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION>
 # or explicitly:
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> summary
+```
+
+#### `paths` (Session File Locations)
+Displays all on-disk locations (session directory, `transcript.jsonl`, `transcript_full.jsonl`, logs, step output files, scratch directory, and workspace) with clickable `file://` links:
+
+```bash
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> paths
 ```
 
 #### `steps` (Timeline View)
@@ -227,6 +301,13 @@ Audits all shell commands executed via the `run_command` tool in a Markdown tabl
 
 ```bash
 uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> commands
+```
+
+#### `compare` (Session Comparison)
+Compares this session against another session:
+
+```bash
+uv run .agents/skills/agy-brain-explorer/scripts/agy-brain-explorer.py <SESSION> compare <OTHER_SESSION>
 ```
 
 #### `raw` (Raw Step Dump)
